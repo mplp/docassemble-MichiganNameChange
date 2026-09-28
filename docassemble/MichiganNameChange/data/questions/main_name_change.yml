@@ -1,0 +1,2534 @@
+---
+include:
+  - docassemble.AssemblyLine:assembly_line.yml
+  - docassemble.mlhframework:mlh_interview_framework.yml
+---
+modules:
+  - docassemble.ALToolbox.ThreePartsDate
+---
+metadata:
+  title: Do-It-Yourself Name Change
+  short title: Do-It-Yourself Name Change
+  description: |
+    Self-help interview to get documents needed to file for a name change in Michigan.
+  tags:
+    - Family
+  authors:
+    - Michigan Legal Help
+    - Lemma Legal
+---
+features:
+  labels above fields: True
+---
+sections:
+  - signpost_intro: "Introduction"
+  - signpost_qualify: "Is this tool right for you?"
+  - signpost_user: "Your Information"
+  - signpost_spouse: "Your Spouse"
+  - signpost_children: "Your Children"
+  - signpost_case: "Court and Case Information"
+  - signpost_sign: "Sign Your Forms"
+  - signpost_done: "Get Your Forms"
+  - review_full: "✎ <u>Review / Edit</u>"
+---
+# add survey info when time
+code: |
+  survey_link_url_only = "#"
+---
+template: survey_embed_script
+content: |
+  <script>
+  </script>
+---
+# set intro landing screen variables
+code: |
+  MLH_form_type = "forms"
+  MLH_time_min = 20
+  MLH_time_max = 30
+---
+# set e-signature support
+# need to add logic for new forms if they don't support e-signature
+# PC51 and PC51c both support e-sign by petitioner
+code: |
+  MLH_esign_supported = True
+---
+# set form type
+code: |
+  al_form_type = 'starts_case'
+---
+# for framework court loader logic
+code: |
+  filing_court = "circuit_only"
+  ottawa_circuit_location = "Grand Haven"
+---
+objects:
+  - users: ALPeopleList.using(
+      there_are_any=True,
+      there_is_another=False,
+      target_number=1
+      )
+  - spouse: ALIndividual
+  - other_parent: ALIndividual
+  - minor_parent_one: ALIndividual
+  - minor_parent_two: ALIndividual
+  - minor_guardian: ALIndividual
+  - children: ALPeopleList.using(
+      ask_number=True,
+      complete_attribute="name_change_complete"
+      )
+  - prior_family_cases: DAList.using(
+      ask_number=False,
+      complete_attribute="complete",
+      object_type=DAObject,
+      there_are_any=True
+      )
+  - criminal_records: DAList.using(
+      ask_number=False,
+      complete_attribute="complete",
+      object_type=DAObject
+      )
+  - publication_incidents: DAList.using(
+      ask_number=False,
+      complete_attribute="complete",
+      object_type=DAObject
+      )
+---
+generic object: ALIndividual
+objects:
+  - x.new_name: IndividualName
+---
+id: interview_order_name_change
+mandatory: True
+scan for variables: False
+code: |
+  nav.set_section("signpost_intro")
+  MLH_standard_intro_pages
+
+  nav.set_section("signpost_qualify")
+
+  county_choice
+  court_index
+  the_court
+  if not county_residency_one_year and not continue_despite_residency_requirement:
+    residency_requirement_kickout
+
+  continue_after_criminal_records_intro
+  if not continue_after_criminal_records_intro:
+    criminal_records_intro_kickout
+
+  fraudulent_name_change
+  if fraudulent_name_change:
+    fraudulent_intent_kickout
+
+  nav.set_section("signpost_user")
+  users.gather()
+  users[0].birthdate
+
+  petitioner_age
+  if petitioner_age < 14:
+    petitioner_under_14_kickout
+  elif petitioner_is_minor:
+    minor_emancipation_complete
+    if not emancipated_minor:
+      minor_parent_one
+      minor_parent_two
+      minor_parent_labels_complete
+      minor_parent_one.name.first
+      minor_parent_one.minor_name_change_information_complete
+      if minor_parent_one.is_alive and minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change:
+        minor_custodial_parent_disagrees_kickout
+      if minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and not minor_parent_one.consent_exception_applies:
+        minor_no_parental_consent_exception_kickout
+      minor_parent_two.name.first
+      minor_parent_two.minor_name_change_information_complete
+      if minor_parent_two.is_alive and minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change:
+        minor_custodial_parent_disagrees_kickout
+      if minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and not minor_parent_two.consent_exception_applies:
+        minor_no_parental_consent_exception_kickout
+      if not (minor_parent_one.is_alive and minor_parent_one.has_legal_custody) and not (minor_parent_two.is_alive and minor_parent_two.has_legal_custody):
+        minor_guardian.name.first
+        minor_guardian_agrees_to_name_change
+        if not minor_guardian_agrees_to_name_change:
+          minor_guardian_disagrees_kickout
+      minor_first_signing_parent
+
+  users[0].address.address
+  users[0].phone_number
+
+  if petitioner_is_minor:
+    minor_name_change_setup_complete
+  else:
+    name_change_targets_complete
+  if not petitioner_is_minor and name_change_target_group == "adults" and adult_name_change == "myself" and pending_divorce_case and divorce_name_change_path == "divorce":
+    divorce_name_change_kickout
+
+  if change_petitioner_name:
+    users[0].new_name.first
+
+  if change_spouse_name:
+    nav.set_section("signpost_spouse")
+    spouse.name.first
+    spouse.birthdate
+    spouse.phone_number
+    spouse_address_same_as_user
+    spouse.new_name.first
+    if not spouse_address_same_as_user:
+      spouse.address.address
+
+  if change_children_names:
+    nav.set_section("signpost_children")
+    if petitioner_relationship_to_children == "guardian":
+      minor_parent_one
+      minor_parent_two
+      guardian_parent_labels_complete
+      minor_parent_one.guardian_name_change_information_complete
+      if not minor_parent_one.is_alive:
+        minor_parent_one.name.first
+      if minor_parent_one.is_alive:
+        if minor_parent_one.legally_incompetent_status == "yes":
+          guardian_legally_incompetent_parent_kickout
+        else:
+          guardian_living_parent_kickout
+      minor_parent_two.guardian_name_change_information_complete
+      if not minor_parent_two.is_alive:
+        minor_parent_two.name.first
+      if minor_parent_two.is_alive:
+        if minor_parent_two.legally_incompetent_status == "yes":
+          guardian_legally_incompetent_parent_kickout
+        else:
+          guardian_living_parent_kickout
+    children_part_one_complete
+    if petitioner_relationship_to_children == "biological":
+      if not petitioner_has_legal_custody_of_all_children:
+        children_legal_custody_kickout
+      if not children_have_same_other_parent:
+        children_different_parents_kickout
+    if petitioner_relationship_to_children == "biological":
+      if spouse_is_other_parent:
+        if not change_spouse_name:
+          spouse.name.first
+      else:
+        other_parent.name.first
+      children_other_parent
+      children_other_parent_questions_needed
+      if children_other_parent_questions_needed:
+        children_part_two
+      if children_other_parent.is_alive and children_other_parent.has_joint_legal_custody and not children_other_parent.whereabouts_known:
+        custodial_parent_whereabouts_unknown_kickout
+      if children_other_parent.is_alive and children_other_parent.has_joint_legal_custody and not children_other_parent.joins_child_name_change_request and not children_other_parent.agrees_to_name_change:
+        joint_custody_parent_disagrees_kickout
+      if children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and not children_other_parent.agrees_to_name_change and not (children_other_parent.failed_contact_two_years or children_other_parent.abuse_conviction or children_other_parent.murder_conviction):
+        no_parental_consent_exception_kickout
+      if not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known:
+        children_other_parent.address.address
+  if change_children_names:
+    children.target_number
+    children.gather()
+
+  nav.set_section("signpost_case")
+  family_court_cases
+  if family_court_cases:
+    prior_family_cases.gather()
+
+  people_changing_names
+  criminal_record_subject_choices
+  criminal_record_selection_complete
+  criminal_records.gather()
+
+  birth_certificate_option
+  publication_is_ok
+  if not publication_is_ok:
+    reasons_not_to_publish_complete
+    if why_not_publish["danger"]:
+      publication_danger_complete
+      if publication_incidents.there_are_any:
+        publication_incidents.gather()
+      if publication_danger_reasons["gender_identity"]:
+        danger_gender_statement_complete
+    if why_not_publish["discrimination"]:
+      discrimination_complete
+      if ("gender_identity" in discrimination_reason_values):
+        discrimination_gender_statement_complete
+  if not publication_is_ok:
+    no_publication_and_basis_of_fear_details_value
+
+  nav.set_section("signpost_sign")
+  MLH_standard_outro_pages
+
+  nav.set_section("signpost_done")
+  MLH_download
+---
+id: initialize criminal record choices
+code: |
+  criminal_record_subject_choices = []
+  criminal_record_subject_labels = {}
+
+  if change_petitioner_name:
+    criminal_record_subject_choices.append(
+      {"petitioner": users[0].name.full(middle="full")}
+    )
+    criminal_record_subject_labels["petitioner"] = users[0].name.full(middle="full")
+
+  if change_spouse_name:
+    criminal_record_subject_choices.append(
+      {"spouse": spouse.name.full(middle="full")}
+    )
+    criminal_record_subject_labels["spouse"] = spouse.name.full(middle="full")
+
+  if change_children_names:
+    criminal_record_subject_choices.append(
+      {"minor_child": "A minor child"}
+    )
+    criminal_record_subject_labels["minor_child"] = "a minor child"
+
+---
+id: residence requirement
+question: |
+  Residence Requirement
+subquestion: |
+  You and everyone whose name will be changed must have lived in the same county for one full year before you file your petition.
+fields:
+  - Have you and everyone whose name will be changed lived in ${ county_choice } County for at least one year?: county_residency_one_year
+    datatype: yesnoradio
+  - note: |
+      We're sorry, this tool is not right for you. Anyone seeking a name change must have lived in the county for at least one year before you can file the petition. You can continue with the tool and print it off, but you will not be able to file it until the one year requirement is met.
+    show if:
+      variable: county_residency_one_year
+      is: False
+  - Do you want to continue?: continue_despite_residency_requirement
+    datatype: yesnoradio
+    show if:
+      variable: county_residency_one_year
+      is: False
+---
+id: residency requirement kickout
+event: residency_requirement_kickout
+question: |
+  This tool may not be right for you
+subquestion: |
+  Anyone seeking a name change must have lived in the county for at least one year before the petition can be filed.
+
+  If you think you made a mistake, tap **Undo** and change the answer to this question.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: criminal records intro
+question: |
+  Criminal Records
+subquestion: |
+  Every person who wants their name changed will be asked if they have a criminal record. If any criminal records do exist, you will need to know the charge and when it happened. The court may choose to schedule a hearing to decide whether the person wants a name change for fraudulent reasons.
+
+  For more information about this, read [I Want to Change My Name](https://michiganlegalhelp.org/resources/family/i-want-change-my-name).
+fields:
+  - Do you want to continue?: continue_after_criminal_records_intro
+    datatype: yesnoradio
+---
+id: criminal records intro kickout
+event: criminal_records_intro_kickout
+question: |
+  This tool may not be right for you
+subquestion: |
+  You chose not to continue after reading the information about criminal records.
+
+  If you think you made a mistake, tap **Undo** and change the answer to this question.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: fraudulent intent
+question: |
+  Fraudulent Intent
+subquestion: |
+  Do you want this name change for a fraudulent reason?
+
+  Examples of fraud include wanting a name change to escape criminal history or deceive creditors.
+fields:
+  - no label: fraudulent_name_change
+    datatype: yesnoradio
+---
+id: fraudulent intent kickout
+event: fraudulent_intent_kickout
+question: |
+  We're sorry, this tool is not right for you.
+subquestion: |
+  You cannot change your name for a fraudulent reason.
+
+  If you think you made a mistake, tap **Undo** and change the answer to this question.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+sets:
+  - users[0].name.first
+  - users[0].name.middle
+  - users[0].name.last
+  - users[0].name.suffix
+id: petitioner current name
+question: |
+  What is your current legal name?
+subquestion: |
+  ${ collapse_template(petitioner_name_help) }
+fields:
+  - code: |
+      users[0].name_fields(
+        person_or_business="person",
+        show_suffix=True
+      )
+---
+# feels like these should be broken up into multiple help accordions with more specific subjects?
+template: petitioner_name_help
+subject: |
+  Help
+content: |
+  For children and teens under age 18. If you are 13 or younger, you must have a parent or guardian file for you, and their information should go on this screen. If you are 14 or older, you can enter your own information here and continue.
+
+  If you are a parent asking to change the name of your minor child, enter **your** information here even if your name is not changing. You will enter the child's information later.
+
+  If you are an adult asking to change your own name, enter your information here. If your spouse or children are also changing their name, you will enter their information later.
+---
+id: petitioner birthdate
+question: |
+  What is your date of birth?
+fields:
+  - Date of birth: users[0].birthdate
+    datatype: ThreePartsDate
+---
+id: calculate petitioner age
+code: |
+  petitioner_age = users[0].age_in_years()
+  petitioner_is_minor = petitioner_age < 18
+  if not petitioner_is_minor:
+    emancipated_minor = False
+---
+id: petitioner under 14 kickout
+event: petitioner_under_14_kickout
+question: |
+  This tool is not right for you
+subquestion: |
+  If you are 13 or younger, a parent or legal guardian must file the name change petition for you.
+
+  If you think you made a mistake, tap **Undo** and change your date of birth.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: minor emancipation status
+continue button field: minor_emancipation_complete
+undefine:
+  - emancipated_minor
+question: |
+  You Are Under 18
+fields:
+  - Are you an emancipated minor?: emancipated_minor
+    datatype: yesnoradio
+  - note: |
+      You will need to file a copy of the Order of Emancipation with your Petition for Name Change.
+    show if:
+      variable: emancipated_minor
+      is: True
+  - note: |
+      If you are a minor there are special rules for changing your name. If you are 14 years old or older you can ask the court to change your name, but both of your parents must agree to your proposed name change.
+
+      If your noncustodial parent objects to your proposed name change, the court may still approve it if:
+
+      * That parent failed to provide you with substantial support for the last two years, and that parent has not had substantial contact with you in the last two years; **OR**
+      * That parent has been convicted of child abuse or a sexual assault crime and you or one of your siblings was the victim.
+
+      If both of your parents are deceased, your legal guardian must consent to your name change. You must submit letters of guardianship with your Petition for Name Change.
+    show if:
+      variable: emancipated_minor
+      is: False
+---
+id: minor parent labels
+continue button field: minor_parent_labels_complete
+question: |
+  How should we refer to your parents?
+subquestion: |
+  The answer to this question only affects the language used in this tool. It will not affect your forms in any way.
+fields:
+  - no label: minor_parent_terms
+    input type: radio
+    choices:
+      - Mother / Father: mother_father
+      - First Parent / Second Parent: first_second
+validation code: |
+  if minor_parent_terms == "mother_father":
+    minor_parent_one.relationship_label = "mother"
+    minor_parent_two.relationship_label = "father"
+  else:
+    minor_parent_one.relationship_label = "first parent"
+    minor_parent_two.relationship_label = "second parent"
+---
+id: guardian parent labels
+continue button field: guardian_parent_labels_complete
+question: |
+  First Parent Information
+fields:
+  - label: |
+      How should we refer to the child(ren)'s parents?
+
+      The answer to this question only affects the language used in this tool. It will not affect your forms in any way.
+    field: guardian_parent_terms
+    input type: radio
+    choices:
+      - Mother / Father: mother_father
+      - First Parent / Second Parent: first_second
+validation code: |
+  if guardian_parent_terms == "mother_father":
+    minor_parent_one.relationship_label = "mother"
+    minor_parent_two.relationship_label = "father"
+  else:
+    minor_parent_one.relationship_label = "first parent"
+    minor_parent_two.relationship_label = "second parent"
+---
+generic object: ALIndividual
+id: guardian parent information
+continue button field: x.guardian_name_change_information_complete
+question: |
+  ${ x.relationship_label.capitalize() } Information
+fields:
+  - Is the children's ${ x.relationship_label } still alive?: x.is_alive
+    datatype: yesnoradio
+  - Has the children's ${ x.relationship_label } been declared a legally incompetent adult?: x.legally_incompetent_status
+    input type: radio
+    choices:
+      - Yes: yes
+      - No: no
+      - I don't know: unknown
+    js show if: |
+      val("x.is_alive")
+  - note: |
+      **We're sorry, this tool is not right for you. A situation with a legally incompetent parent is too complicated for this tool.**
+    js show if: |
+      val("x.is_alive") && val("x.legally_incompetent_status") === "yes"
+  - note: |
+      **We're sorry, this tool is not right for you. You're not allowed to change the names of children under your care while their parent is still alive unless the parent is a legally incompetent adult.**
+    js show if: |
+      val("x.is_alive") && (val("x.legally_incompetent_status") === "no" || val("x.legally_incompetent_status") === "unknown")
+---
+id: guardian living parent kickout
+event: guardian_living_parent_kickout
+question: |
+  This tool is not right for you
+subquestion: |
+  You're not allowed to change the names of children under your care while their parent is still alive unless the parent is a legally incompetent adult.
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: guardian legally incompetent parent kickout
+event: guardian_legally_incompetent_parent_kickout
+question: |
+  This tool is not right for you
+subquestion: |
+  A situation with a legally incompetent parent is too complicated for this tool.
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+template: minor_legal_custody_help
+subject: |
+  What does “legal custody” mean?
+content: |
+  A parent with legal custody has authority to make big decisions for you, like where you will go to school and consenting to medical treatment. This could be one of your parents (“sole” legal custody) or both parents (“joint” legal custody). A parent can have legal custody even if they do not have physical custody.
+
+  There should be a court order deciding your legal custody if your parents got divorced after you were born, or if they went to court for child support, parenting time, paternity, or custody. If you do not know whether there is a court order or what the order says, talk to your parents or ask them to see your custody papers. If there is a court order, you can also request a copy from the court where your parents’ case was.
+
+  If there is no court order about your custody, one or both parents may have legal custody. For example, if your parents were married to each other when you were born and they are still married, they probably both have legal custody. If your parents are not married to each other and there is no court order, your mother (or the parent who gave birth to you) probably has legal custody of you, and your other parent probably does not.
+---
+id: first minor parent name
+sets:
+  - minor_parent_one.name.first
+  - minor_parent_one.name.middle
+  - minor_parent_one.name.last
+  - minor_parent_one.name.suffix
+question: |
+  ${ minor_parent_one.relationship_label.capitalize() } Information
+subquestion: |
+  Enter your ${ minor_parent_one.relationship_label }'s full legal name.
+fields:
+  - code: |
+      minor_parent_one.name_fields(
+        person_or_business="person",
+        show_suffix=True
+      )
+---
+id: second minor parent name
+sets:
+  - minor_parent_two.name.first
+  - minor_parent_two.name.middle
+  - minor_parent_two.name.last
+  - minor_parent_two.name.suffix
+question: |
+  ${ minor_parent_two.relationship_label.capitalize() } Information
+subquestion: |
+  Enter your ${ minor_parent_two.relationship_label }'s full legal name.
+fields:
+  - code: |
+      minor_parent_two.name_fields(
+        person_or_business="person",
+        show_suffix=True
+      )
+---
+generic object: ALIndividual
+id: minor parent information
+continue button field: x.minor_name_change_information_complete
+undefine:
+  - x.is_alive
+  - x.whereabouts_known
+  - x.has_legal_custody
+  - x.agrees_to_name_change
+  - x.failed_contact_two_years
+  - x.support_failure_type
+  - x.abuse_conviction
+  - x.murder_conviction
+question: |
+  ${ x.name.first }'s Information
+fields:
+  - Is your ${ x.relationship_label } still alive?: x.is_alive
+    datatype: yesnoradio
+  - Do you know where ${ x.name.first } lives?: x.whereabouts_known
+    datatype: yesnoradio
+    js show if: |
+      val("x.is_alive")
+  - Does ${ x.name.first } have legal custody of you? This could be joint legal custody or sole legal custody.: x.has_legal_custody
+    datatype: yesnoradio
+    js show if: |
+      val("x.is_alive")
+  - note: |
+      ${ collapse_template(minor_legal_custody_help) }
+    js show if: |
+      val("x.is_alive")
+  - label: |
+      Does ${ x.name.first } agree to the name change?
+
+      *Pick “Yes” only if ${ x.name.first } is willing to sign forms consenting to the change.*
+    field: x.agrees_to_name_change
+    datatype: yesnoradio
+    js show if: |
+      val("x.is_alive")
+  - note: |
+      **Sorry, this tool is not right for you. A parent with legal custody must agree to a child's name change.**
+    js show if: |
+      val("x.is_alive") && val("x.has_legal_custody") && val("x.agrees_to_name_change") === false
+  - Has ${ x.name.first } failed to visit, contact, or communicate with you for the last two years?: x.failed_contact_two_years
+    datatype: yesnoradio
+    js show if: |
+      val("x.is_alive") && val("x.has_legal_custody") === false && val("x.agrees_to_name_change") === false
+  - Select one: x.support_failure_type
+    input type: radio
+    choices:
+      - "A support order has been entered and ${ x.name.first } has failed to substantially comply with the order for a period of two years": support_order
+      - "A support order has not been entered and ${ x.name.first } has failed or neglected to provide support for two years": no_support_order
+    js show if: |
+      val("x.is_alive") && val("x.has_legal_custody") === false && val("x.agrees_to_name_change") === false && val("x.failed_contact_two_years")
+  - Has ${ x.name.first } been convicted of child abuse, criminal sexual conduct, or assault with intent to commit criminal sexual conduct with you or a sibling as the victim?: x.abuse_conviction
+    datatype: yesnoradio
+    js show if: |
+      val("x.is_alive") && val("x.has_legal_custody") === false && val("x.agrees_to_name_change") === false
+  - note: |
+      **Attach a copy of the judgment of sentence.**
+    js show if: |
+      val("x.abuse_conviction")
+  - Has ${ x.name.first } been convicted of first degree murder or second degree murder?: x.murder_conviction
+    datatype: yesnoradio
+    js show if: |
+      val("x.is_alive") && val("x.has_legal_custody") === false && val("x.agrees_to_name_change") === false
+  - note: |
+      **Attach a copy of the judgment of murder sentence.**
+    js show if: |
+      val("x.murder_conviction")
+  - note: |
+      **If your parent agrees to the name change, you need their current address for the paperwork.**
+    js show if: |
+      val("x.is_alive") && val("x.agrees_to_name_change") && val("x.whereabouts_known") === false
+  - Street Address or P.O. Box: x.address.address
+    address autocomplete: True
+    js show if: |
+      val("x.is_alive") && val("x.agrees_to_name_change")
+  - Apartment, suite, floor, etc.: x.address.unit
+    required: False
+    js show if: |
+      val("x.is_alive") && val("x.agrees_to_name_change")
+  - City or town: x.address.city
+    js show if: |
+      val("x.is_alive") && val("x.agrees_to_name_change")
+  - State: x.address.state
+    code: |
+      states_list()
+    default: MI
+    js show if: |
+      val("x.is_alive") && val("x.agrees_to_name_change")
+  - Zip code: x.address.zip
+    js show if: |
+      val("x.is_alive") && val("x.agrees_to_name_change")
+  - Phone number: x.phone_number
+    datatype: al_international_phone
+    required: False
+    js show if: |
+      val("x.is_alive") && val("x.agrees_to_name_change")
+validation code: |
+  if x.is_alive and x.agrees_to_name_change:
+    x.address.country = "US"
+  x.consent_exception_applies = (
+    x.is_alive
+    and not x.has_legal_custody
+    and not x.agrees_to_name_change
+    and (
+      (x.failed_contact_two_years and bool(x.support_failure_type))
+      or x.abuse_conviction
+      or x.murder_conviction
+    )
+  )
+---
+id: minor custodial parent disagrees kickout
+event: minor_custodial_parent_disagrees_kickout
+question: |
+  This tool is not right for you
+subquestion: |
+  A parent with legal custody must agree to a child's name change.
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: minor no parental consent exception kickout
+event: minor_no_parental_consent_exception_kickout
+question: |
+  This tool is not right for you
+subquestion: |
+  Michigan law requires the agreement of both parents to change a minor's name except under limited circumstances. Based on your answers, none of these circumstances are present in your case.
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: minor guardian name
+sets:
+  - minor_guardian.name.first
+  - minor_guardian.name.middle
+  - minor_guardian.name.last
+  - minor_guardian.name.suffix
+question: |
+  Your Guardian's Information
+subquestion: |
+  Enter your legal guardian's full legal name. You will need to file your letters of guardianship with the petition.
+fields:
+  - code: |
+      minor_guardian.name_fields(
+        person_or_business="person",
+        show_suffix=True
+      )
+---
+id: minor guardian consent and contact
+question: |
+  ${ minor_guardian.name.first }'s Information
+fields:
+  - Does ${ minor_guardian.name.first } agree to your name change and agree to sign the consent forms?: minor_guardian_agrees_to_name_change
+    datatype: yesnoradio
+  - Street Address or P.O. Box: minor_guardian.address.address
+    address autocomplete: True
+    show if: minor_guardian_agrees_to_name_change
+  - Apartment, suite, floor, etc.: minor_guardian.address.unit
+    required: False
+    show if: minor_guardian_agrees_to_name_change
+  - City or town: minor_guardian.address.city
+    show if: minor_guardian_agrees_to_name_change
+  - State: minor_guardian.address.state
+    code: |
+      states_list()
+    default: MI
+    show if: minor_guardian_agrees_to_name_change
+  - Zip code: minor_guardian.address.zip
+    show if: minor_guardian_agrees_to_name_change
+  - Phone number: minor_guardian.phone_number
+    datatype: al_international_phone
+    required: False
+    show if: minor_guardian_agrees_to_name_change
+validation code: |
+  if minor_guardian_agrees_to_name_change:
+    minor_guardian.address.country = "US"
+---
+id: minor guardian disagrees kickout
+event: minor_guardian_disagrees_kickout
+question: |
+  This tool is not right for you
+subquestion: |
+  Your legal guardian must agree to your name change. If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: minor parent signers
+code: |
+  if minor_parent_one.is_alive and minor_parent_one.has_legal_custody:
+    minor_first_signing_parent = minor_parent_one
+    minor_second_signing_parent = (
+      minor_parent_two if minor_parent_two.is_alive and minor_parent_two.agrees_to_name_change else None
+    )
+  elif minor_parent_two.is_alive and minor_parent_two.has_legal_custody:
+    minor_first_signing_parent = minor_parent_two
+    minor_second_signing_parent = (
+      minor_parent_one if minor_parent_one.is_alive and minor_parent_one.agrees_to_name_change else None
+    )
+  else:
+    minor_first_signing_parent = minor_guardian
+    minor_second_signing_parent = None
+  noncustodial_parents = [
+    parent for parent in (minor_parent_one, minor_parent_two)
+    if parent.is_alive and not parent.has_legal_custody
+  ]
+  minor_custody_exception_applies = (
+    any(not parent.agrees_to_name_change and parent.consent_exception_applies for parent in noncustodial_parents)
+    and not any(parent.agrees_to_name_change for parent in noncustodial_parents)
+  )
+---
+id: minor name change setup
+code: |
+  minor_reason_for_name_change
+  name_change_target_group = "adults"
+  adult_name_change = "myself"
+  change_petitioner_name = True
+  change_spouse_name = False
+  change_children_names = False
+  children.there_are_any = False
+  spouse_address_same_as_user = False
+  pending_divorce_case = False
+  divorce_name_change_path = "separate"
+  reason_for_name_change = minor_reason_for_name_change
+  name_change_targets_complete = True
+  minor_name_change_setup_complete = True
+---
+id: minor reason for name change
+question: |
+  Why do you want to change your name?
+fields:
+  - 'In a brief sentence, say why you want this name change. For example: "I want to change my name because I want to take my stepfather’s name."': minor_reason_for_name_change
+    input type: area
+    rows: 3
+    maxlength: 500
+---
+id: whose names are changing
+continue button field: name_change_targets_complete
+question: |
+  Whose name is changing?
+fields:
+  - Whose names do you want to change?: name_change_target_group
+    input type: radio
+    choices:
+      - Adults (yourself, your spouse): adults
+      - Minor children: children
+      - Both: both
+  - What adults are asking for a name change?: adult_name_change
+    input type: radio
+    choices:
+      - Me: myself
+      - Both me and my spouse: both
+    js show if: |
+      val("name_change_target_group") == "adults" || val("name_change_target_group") == "both"
+  - note: |
+      You cannot apply to change **only** your spouse's name. If only your spouse is changing his or her name, your spouse should apply.
+    js show if: |
+      val("name_change_target_group") == "adults" || val("name_change_target_group") == "both"
+  - Do you have a divorce case currently pending?: pending_divorce_case
+    datatype: yesnoradio
+    js show if: |
+      val("name_change_target_group") == "adults" && val("adult_name_change") == "myself"
+  - Who filed the divorce case?: divorce_filer
+    input type: radio
+    choices:
+      - I did: petitioner
+      - My spouse did: spouse
+    js show if: |
+      val("name_change_target_group") == "adults" && val("adult_name_change") == "myself" && val("pending_divorce_case")
+  - note: |
+      A plaintiff in a divorce case (the party who files the case) can ask for a name change in their Complaint for Divorce IF they are a woman. (At this time Michigan law does not allow a man to change their name as part of a divorce.) Doing this in the divorce case would save you the time and money of starting a separate name change case.
+    js show if: |
+      val("name_change_target_group") == "adults" && val("adult_name_change") == "myself" && val("pending_divorce_case") && val("divorce_filer") == "petitioner"
+  - note: |
+      If you filed a Complaint for Divorce that did not include a request for a name change, you may be able to file an amended complaint to change it.
+    js show if: |
+      val("name_change_target_group") == "adults" && val("adult_name_change") == "myself" && val("pending_divorce_case") && val("divorce_filer") == "petitioner"
+  - note: |
+      A defendant in a divorce case can ask for a name change by filing a Counterclaim for Divorce IF they are a woman. (At this time Michigan law does not allow a man to change their name as part of a divorce.) This would save you the time and money of starting a separate name change case. You can prepare an Answer and Counterclaim using the [Do-It-Yourself Answer and Counterclaim for Divorce](https://michiganlegalhelp.org/resources/family/do-it-yourself-answer-and-counterclaim-divorce).
+    js show if: |
+      val("name_change_target_group") == "adults" && val("adult_name_change") == "myself" && val("pending_divorce_case") && val("divorce_filer") == "spouse"
+  - Would you like to exit this tool now or continue and prepare a name change petition?: divorce_name_change_path
+    input type: radio
+    choices:
+      - Exit and change my name through the divorce case.: divorce
+      - Continue and file a separate Petition for Name Change.: separate
+    js show if: |
+      val("name_change_target_group") == "adults" && val("adult_name_change") == "myself" && val("pending_divorce_case")
+  - What is your relationship to the children?: petitioner_relationship_to_children
+    input type: radio
+    choices:
+      - Parent: biological
+      - Legal guardian: guardian
+    js show if: |
+      val("name_change_target_group") == "children"
+  - note: |
+      **Warning!** If you're trying to change the name of a child, all parents who share legal custody of the child have to agree to the proposed name change. Only a custodial parent can request a child's name be changed. However, the noncustodial parent must be given notice of the name change and hearing notice. If you want to learn more about changing a child's name, please return to **Michigan Legal Help** and read the [Changing Your Minor Child's Name](https://michiganlegalhelp.org/resources/family/changing-your-minor-childs-name) article.
+    js show if: |
+      val("name_change_target_group") == "children" || val("name_change_target_group") == "both"
+  - note: |
+      **If you are the legal guardian of the children listed in this petition you will need to submit letters of guardianship with your petition.**
+    js show if: |
+      val("name_change_target_group") == "children" && val("petitioner_relationship_to_children") == "guardian"
+  - 'In a brief sentence, say why you want this name change. For example: "I want to change my name because I want to take my stepfather’s name."': reason_for_name_change
+    input type: area
+    rows: 3
+    maxlength: 500
+    js show if: |
+      val("name_change_target_group") == "adults" || val("name_change_target_group") == "children" || val("name_change_target_group") == "both"
+validation code: |
+  change_petitioner_name = name_change_target_group in ("adults", "both")
+  change_spouse_name = change_petitioner_name and adult_name_change == "both"
+  change_children_names = name_change_target_group in ("children", "both")
+  if name_change_target_group == "both":
+    petitioner_relationship_to_children = "biological"
+---
+code: |
+  children.there_are_any = change_children_names
+---
+id: divorce name change kickout
+event: divorce_name_change_kickout
+question: |
+  Change your name through your divorce case
+subquestion: |
+  You chose to ask for your name change through your pending divorce case instead of filing a separate Petition for Name Change.
+
+  For more information, read [Introduction to Divorce without Children](https://michiganlegalhelp.org/resources/family/introduction-divorce-without-children) or [Introduction to Divorce with Minor Children](https://michiganlegalhelp.org/resources/family/introduction-divorce-minor-children). Information about changing your name is in the section **Can I Change My Name as Part of the Divorce?**
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: petitioner proposed name
+question: |
+  Your new name
+subquestion: |
+  Enter your **new name**.
+fields:
+  - First name: users[0].new_name.first
+  - Middle name: users[0].new_name.middle
+    required: False
+  - Last name: users[0].new_name.last
+  - Suffix (if any): users[0].new_name.suffix
+    required: False
+    code: |
+      name_suffix()
+---
+id: prior family division circuit court cases
+question: |
+  Prior Family Division Circuit Court Cases
+subquestion: |
+  Have any of the people whose names are changing ever been involved in a case in the family division of any circuit court in Michigan?
+
+  This includes divorce, custody, child support, personal protection orders, paternity, termination of parental rights, child protective proceedings, juvenile guardianships, and juvenile delinquency proceedings.
+
+  This includes if someone was involved as a child in their parents’ divorce or custody case, even if it was many years ago.
+
+fields:
+  - no label: family_court_cases
+    datatype: yesnoradio
+  - note: |
+      **You will enter information for any prior family division court cases on the next page.**
+    show if:
+      variable: family_court_cases
+      is: True
+---
+id: prior family case gather logic
+code: |
+  prior_family_cases[i].state
+  if prior_family_cases[i].state == "MI":
+    prior_family_cases[i].county = prior_family_cases[i].michigan_county
+  else:
+    prior_family_cases[i].county = prior_family_cases[i].other_county
+  prior_family_cases[i].complete = True
+---
+id: prior family case information
+question: |
+  The ${ capitalize(ordinal(i)) } Prior Case
+subquestion: |
+  *For each prior family division court case, fill out all of the the following:*
+fields:
+  - State: prior_family_cases[i].state
+    code: |
+      states_list()
+    default: MI
+  - County: prior_family_cases[i].michigan_county
+    code: |
+      court_list._load_courts()["address_county"].unique()
+    js show if: |
+      val("prior_family_cases[i].state") == "MI"
+  - County: prior_family_cases[i].other_county
+    js show if: |
+      val("prior_family_cases[i].state") !== "MI"
+  - Court Name: prior_family_cases[i].court
+    js show if: |
+      val("prior_family_cases[i].state") !== "MI"
+  - label: |
+      Case name
+      *(for example, Jones v. Smith or In re: Thomas)*
+    field: prior_family_cases[i].title
+  - Case number: prior_family_cases[i].docket_number
+  - label: |
+      Judge's *last* name
+    field: prior_family_cases[i].judge
+  - What is the status of this case?: prior_family_cases[i].status
+    datatype: radio
+    choices:
+      - It has ended and an order was made: ended_with_order
+      - It has ended but was dismissed by the court: dismissed
+      - It is active/pending but has been stayed by the court: stayed
+      - It is active/pending: pending
+  - Was there a custody or parenting time order in this case?: prior_family_cases[i].included_custody_PT_order
+    datatype: yesnoradio
+  - Is this order currently in effect?: prior_family_cases[i].has_current_custody_PT_order
+    datatype: yesnoradio
+    show if:
+      variable: prior_family_cases[i].included_custody_PT_order
+      is: True
+  - Is there a child support order in this case that is currently in effect?: prior_family_cases[i].has_child_support_order
+    datatype: yesnoradio
+---
+id: prior family cases there is another
+question: |
+  Add another prior case?
+subquestion: |
+  So far, you have listed:
+
+  ${ prior_family_cases.table }
+fields:
+  - Do you have another family division court case to include?: prior_family_cases.there_is_another
+    datatype: yesnoradio
+---
+table: prior_family_cases.table
+rows: prior_family_cases
+columns:
+  - Case name: row_item.title
+  - State: state_name(row_item.state)
+  - County: row_item.county
+  - Case number: row_item.docket_number
+edit: True
+---
+id: criminal records
+question: |
+  Criminal Records
+subquestion: |
+  Does any person applying for a name change have a criminal record?
+
+  Having a criminal record doesn’t mean your request for name change will be automatically denied. However, the judge may decide to schedule a hearing to decide if you are asking to change your name for a fraudulent reason, such as wanting to escape your criminal history.
+
+  You must report any criminal records, including:
+
+  * open or closed criminal cases
+  * cases from out of state
+  * very old records, including juvenile records
+
+  If someone has a criminal record, select them below. Otherwise, the judge might think they are trying to hide something.
+fields:
+  - label: |
+      Does any person listed here have a criminal record? (check all that apply)
+    field: people_with_criminal_records
+    datatype: checkboxes
+    code: |
+      criminal_record_subject_choices
+    none of the above: True
+continue button field: criminal_record_selection_complete
+---
+code: |
+  criminal_record_selected_choices = [
+    {subject: criminal_record_subject_labels[subject]}
+    for subject in people_with_criminal_records.true_values()
+  ]
+---
+code: |
+  criminal_records.there_are_any = bool(criminal_record_selected_choices)
+---
+id: criminal record gather logic
+code: |
+  criminal_records[i].person
+  criminal_records[i].charge
+  criminal_records[i].date
+  criminal_records[i].complete = True
+---
+id: criminal record information
+question: |
+  ${ capitalize(ordinal(i)) } Criminal Record
+subquestion: |
+  Enter the information about this criminal record.
+fields:
+  - Whose criminal record is this?: criminal_records[i].person
+    code: |
+      criminal_record_selected_choices
+  - Charge: criminal_records[i].charge
+    datatype: text
+  - Date of the charge: criminal_records[i].date
+    datatype: text
+    hint: Exact date or month/year
+---
+id: criminal records there is another
+question: |
+  Is there another criminal record?
+subquestion: |
+  Add every criminal record for each person whose name is changing.
+yesno: criminal_records.there_is_another
+---
+id: birth certificate request
+question: |
+  Birth Certificate Request
+subquestion: |
+  There are two options for updating a birth certificate after a name change:
+
+  * **Option 1:** The new name can be added to the birth certificate, **along with the old name**; OR
+  * **Option 2:** A new birth certificate can be created with **only the new name**, and the original birth certificate can be sealed (hidden).
+
+  You must decide now which option you want. It will be hard to change this decision after the name change is final.
+fields:
+  - Do you want new birth certificates with **only new names** on them for anyone (Option 2)?: birth_certificate_option
+    input type: radio
+    choices:
+      - Yes: option_two
+      - No, it’s fine to have the new names **AND** old names on all of the birth certificates.: option_one
+  - label: |
+      I want a new birth certificate with **only the new name (Option 2)** for the following people: (check all that apply)
+    field: people_for_sealed_birth_certificate
+    datatype: object_checkboxes
+    choices: people_changing_names
+    object labeler: |
+      lambda person: person.name.full(middle="full")
+    none of the above: False
+    show if:
+      variable: birth_certificate_option
+      is: option_two
+  - note: |
+      **NOTE:** For either option, getting a final name change order does **not** automatically update the birth certificate.
+
+      If you want to update a birth certificate and get a copy, you will need to record the name change with the Michigan Vital Records Changes department. You have to wait until the name change is final to update a birth certificate. If you want to learn more now, visit the state website [Correct A Birth Record](https://www.michigan.gov/mdhhs/doing-business/vitalrecords/additonal-information/correct-a-birth-record).
+---
+id: publication notice
+question: |
+  Notice of Name Change
+subquestion: |
+  In most cases, you have to publish notice of name change hearings. Notice is usually published in special legal newspapers.
+
+  You can ask the judge **not** to publish notice of the name change if publishing would:
+
+  * put you or someone else in danger;
+  * put you or someone else at risk of discrimination; or
+  * be harmful for another important reason.
+
+  You will need to explain why the name change hearing information should not be published. This interview will help you explain.
+
+  If the judge does not agree to your request, you can decide whether to continue with the name change or not.
+fields:
+  - Are you OK with notice of the name change hearing being published?: publication_is_ok
+    input type: radio
+    choices:
+      - Yes, I’m fine with publishing notice of the hearing.: True
+      - No, I want to ask the judge **not** to publish notice.: False
+---
+id: reasons not to publish
+continue button field: reasons_not_to_publish_complete
+question: |
+  Reasons to Not Publish
+fields:
+  - label: |
+      Why should notice of the name change hearing not be published?
+
+      (check all that apply):
+    field: why_not_publish
+    datatype: checkboxes
+    choices:
+      - It would put me or someone else in danger.: danger
+      - It would put me or someone else at risk of discrimination.: discrimination
+    none of the above: False
+    minlength: 1
+    validation messages:
+      minlength: Select at least one reason why notice should not be published.
+---
+template: stalking_help
+subject: |
+  What does stalking mean?
+content: |
+  Stalking means repeated harassment that makes someone feel terrorized, frightened, intimidated, threatened, harassed, or molested.
+---
+id: publication danger
+continue button field: publication_danger_complete
+question: |
+  Publication Danger
+fields:
+  - label: |
+      Who would be in danger if notice of the name change is published? (check all that apply)
+    field: publication_danger_who
+    datatype: checkboxes
+    code: |
+      [{person.instanceName: person.name.full(middle="full")} for person in people_changing_names] + [
+        {"someone_else": "Someone else"}
+      ]
+    none of the above: False
+    minlength: 1
+    validation messages:
+      minlength: |
+        Select at least one person who would be in danger.
+
+  - Who else not listed above would be in danger?: publication_danger_someone_else_name
+    js show if: |
+      val("publication_danger_who['someone_else']")
+
+  - label: |
+      Why would publishing notice of the name change hearing cause a risk of danger? (check all that apply)
+    field: publication_danger_reasons
+    datatype: checkboxes
+    choices:
+      - There have been past incidents of stalking, and publication could increase the risk of future stalking.: stalking
+      - There have been past incidents of physical violence, and publication could increase the risk of future violence.: violence
+      - This name change is related to gender identity and I am concerned about corresponding violence.: gender_identity
+      - Another reason: other
+    none of the above: False
+    minlength: 1
+    validation messages:
+      minlength: |
+        Select at least one reason publishing notice would create a risk of danger.
+
+  - note: |
+      ${ collapse_template(stalking_help) }
+      
+  - note: |
+      **On the next page, you will enter information about past incidents of stalking or physical violence.**
+    js show if: |
+      val("publication_danger_reasons['stalking']") &&
+      val("publication_danger_reasons['violence']")
+
+  - note: |
+      **On the next page, you will enter information about past incidents of stalking.**
+    js show if: |
+      val("publication_danger_reasons['stalking']") && !val("publication_danger_reasons['violence']")
+
+  - note: |
+      **On the next page, you will enter information about past incidents of physical violence.**
+    js show if: |
+      val("publication_danger_reasons['violence']") && !val("publication_danger_reasons['stalking']")
+      
+  - 'For “Another reason,” finish this sentence: “There is a risk of danger if information about this name change is published because…”': publication_danger_other_reason
+    input type: area
+    rows: 4
+    js show if: |
+      val("publication_danger_reasons['other']")
+
+  - label: |
+      How would publishing notice of the name change hearing increase the risk of physical violence or stalking in the future? (check all that apply)
+    field: publication_danger_future_risk
+    datatype: checkboxes
+    choices:
+      - It would make it easier for the perpetrator of the past stalking or violence to find my family.: find_family
+      - It would allow the perpetrator of the past stalking or violence to find out my family member's gender identity.: reveal_gender_identity
+    none of the above: True
+    js show if: |
+      val("publication_danger_reasons['stalking']") ||
+      val("publication_danger_reasons['violence']")
+
+validation code: |
+  publication_danger_selected_values = (
+    publication_danger_who.true_values()
+  )
+
+  publication_danger_people = [
+    person
+    for person in people_changing_names
+    if person.instanceName in publication_danger_selected_values
+  ]
+
+  if (
+    ("someone_else" in publication_danger_selected_values)
+    and not publication_danger_someone_else_name.strip()
+  ):
+    validation_error(
+      "Enter the name of the other person who would be in danger.",
+      field="publication_danger_someone_else_name"
+    )
+
+  if (
+    publication_danger_reasons["other"]
+    and not publication_danger_other_reason.strip()
+  ):
+    validation_error(
+      "Explain the other reason publishing notice would create a risk of danger.",
+      field="publication_danger_other_reason"
+    )
+
+---
+code: |
+  publication_incidents.there_are_any = (
+    publication_danger_reasons["stalking"] or publication_danger_reasons["violence"]
+  )
+---
+id: publication incident gather logic
+code: |
+  publication_incidents[i].details
+  publication_incidents[i].complete = True
+---
+id: publication incident
+question: |
+  Past Incidents of ${ "Stalking and Physical Violence" if publication_danger_reasons["stalking"] and publication_danger_reasons["violence"] else ("Stalking" if publication_danger_reasons["stalking"] else "Physical Violence") }
+subquestion: |
+  Describe the ${ ordinal(i) } past incident. Use complete sentences and proper punctuation. Your answer will appear on your form exactly how you enter it.
+
+  ${ collapse_template(publication_incident_help) }
+fields:
+  - Incident details: publication_incidents[i].details
+    input type: area
+    rows: 6
+---
+template: publication_incident_help
+subject: |
+  What should I include?
+content: |
+  When describing an incident, here are some things you might want to include:
+
+  - What happened
+  - Where it happened
+  - The date—it’s okay to be approximate, such as “winter of 2022”
+  - Whether you or anyone else was injured or negatively affected by the incident
+  - How the incident made you or someone else feel. You could include a sentence like: “Because of this incident, I felt...”
+  - Whether a police report was filed and, if so, the date it was filed
+---
+id: publication incidents there is another
+question: |
+  Is there another incident?
+subquestion: |
+  You have entered ${ quantity_noun(len(publication_incidents), 'incident') } so far.
+fields:
+  - Do you want to add another incident?: publication_incidents.there_is_another
+    datatype: yesnoradio
+---
+id: danger gender identity statement
+continue button field: danger_gender_statement_complete
+question: |
+  Violence
+subquestion: |
+  You said that this name change is related to gender identity and you are concerned about corresponding violence.
+
+  You can include the following statement in your form asking the judge not to publish notice.
+
+  *${ danger_gender_default_text }*
+fields:
+  - Would you like to include this statement?: danger_gender_statement_choice
+    input type: radio
+    choices:
+      - Yes: default
+      - I want to edit the statement, or write my own statement about the risk of violence based on gender identity.: custom
+  - Please write your own statement below.: danger_gender_custom_text
+    input type: area
+    rows: 8
+    show if:
+      variable: danger_gender_statement_choice
+      is: custom
+validation code: |
+  if danger_gender_statement_choice == "custom" and not danger_gender_custom_text.strip():
+    validation_error("Enter the statement you want to include.", field="danger_gender_custom_text")
+---
+template: discrimination_help
+subject: |
+  What is discrimination?
+content: |
+  **Discrimination is generally not allowed in:**
+
+  * Jobs (for example being fired, not being hired, being harassed at work)
+  * Housing
+  * Education
+  * Public accommodations (shops, restaurants, hotels)
+  * Public Services (service from state agencies, public benefits)
+
+  **Based on someone's:**
+
+  * Sex
+  * Gender identity
+  * Sexual orientation
+  * Race
+  * Ethnicity
+  * Color
+  * National origin
+  * Disability
+  * Religion
+  * Marital status
+  * Familial status
+---
+id: discrimination
+continue button field: discrimination_complete
+question: |
+  Discrimination
+subquestion: |
+  ${ collapse_template(discrimination_help) }
+fields:
+  - label: |
+      Who would be at risk of discrimination if notice of the name change is published?
+    field: discrimination_who
+    datatype: checkboxes
+    code: |
+      [
+        {person.instanceName: person.name.full(middle="full")}
+        for person in people_changing_names
+      ] + [{"someone_else": "Someone else"}]
+    none of the above: False
+    minlength: 1
+    validation messages:
+      minlength: |
+        Select at least one person who would be at risk of discrimination.
+  - Who else not listed above is at risk of discrimination?: discrimination_someone_else_name
+    js show if: |
+      val("discrimination_who['someone_else']")
+  - label: |
+      Why do you think there is a risk of discrimination? (Check all that apply)
+    field: discrimination_reasons
+    datatype: checkboxes
+    choices:
+      - There has been past discrimination against the above person, and I am afraid it will continue or get worse if notice is published.: past_person
+      - There has been past discrimination against other people in our community, and I am afraid it will happen to us if notice is published.: past_community
+      - This name change is related to gender identity and I am concerned about corresponding discrimination.: gender_identity
+    none of the above: False
+    minlength: 1
+    validation messages:
+      minlength: |
+        Select at least one reason there is a risk of discrimination.
+    js show if: |
+      val("discrimination_who").length > 0
+  - "Briefly describe the past discrimination against the above person:": discrimination_history_person
+    input type: area
+    rows: 5
+    js show if: |
+      val("discrimination_who").length > 0 &&
+      val("discrimination_reasons['past_person']")
+  - note: |
+      Use complete sentences and proper punctuation. Your answer will appear on your form exactly how you enter it.
+    js show if: |
+      val("discrimination_who").length > 0 &&
+      val("discrimination_reasons['past_person']")
+  - "Briefly describe the past discrimination against other people in your community:": discrimination_history_community
+    input type: area
+    rows: 5
+    js show if: |
+      val("discrimination_who").length > 0 &&
+      val("discrimination_reasons['past_community']")
+  - note: |
+      Use complete sentences and proper punctuation. Your answer will appear on your form exactly how you enter it.
+    js show if: |
+      val("discrimination_who").length > 0 &&
+      val("discrimination_reasons['past_community']")
+  - Do you want to say anything more to explain why publishing the name change information would increase the risk of discrimination?: discrimination_additional
+    datatype: yesnoradio
+    js show if: |
+      val("discrimination_who").length > 0 &&
+      val("discrimination_reasons").length > 0
+  - 'Finish this sentence: “Publishing information about this name change would increase the risk of discrimination because…”': discrimination_additional_reason
+    input type: area
+    rows: 4
+    js show if: |
+      val("discrimination_who").length > 0 &&
+      val("discrimination_reasons").length > 0 &&
+      val("discrimination_additional")
+validation code: |
+  discrimination_selected_values = discrimination_who.true_values()
+
+  discrimination_reason_values = (
+    discrimination_reasons.true_values()
+    if len(discrimination_selected_values) > 0
+    else []
+  )
+
+  discrimination_people = [
+    person
+    for person in people_changing_names
+    if person.instanceName in discrimination_selected_values
+  ]
+
+  if ("someone_else" in discrimination_selected_values) and not discrimination_someone_else_name.strip():
+    validation_error("Enter the name of the other person at risk of discrimination.", field="discrimination_someone_else_name")
+  if ("past_person" in discrimination_reason_values) and not discrimination_history_person.strip():
+    validation_error("Describe the past discrimination against the person or people selected above.", field="discrimination_history_person")
+  if ("past_community" in discrimination_reason_values) and not discrimination_history_community.strip():
+    validation_error("Describe the past discrimination against other people in your community.", field="discrimination_history_community")
+  if discrimination_additional and not discrimination_additional_reason.strip():
+    validation_error("Explain why publication would increase the risk of discrimination.", field="discrimination_additional_reason")
+---
+id: discrimination gender identity statement
+continue button field: discrimination_gender_statement_complete
+question: |
+  Discrimination
+subquestion: |
+  You said that this name change is related to gender identity and you are concerned about corresponding discrimination.
+
+  You can include the following statement in your form asking the judge not to publish notice.
+
+  <em id="suggested_discrimination_statement">${ discrimination_gender_default_text }</em>
+fields:
+  - Would you like to include this statement?: discrimination_gender_statement_choice
+    input type: radio
+    choices:
+      - Yes: default
+      - I want to edit the statement, or write my own statement about the risk of discrimination based on gender identity.: custom
+  - Please write your own statement below.: discrimination_gender_custom_text
+    input type: area
+    rows: 8
+    show if:
+      variable: discrimination_gender_statement_choice
+      is: custom
+  - html: |
+      <button type="button" id="copy_discrimination_statement" class="btn btn-outline-primary">Copy suggested statement into the text box</button>
+    show if:
+      variable: discrimination_gender_statement_choice
+      is: custom
+script: |
+  <script>
+    $("#copy_discrimination_statement").on("click", function() {
+      setField("discrimination_gender_custom_text", $("#suggested_discrimination_statement").text().trim());
+    });
+  </script>
+validation code: |
+  if discrimination_gender_statement_choice == "custom" and not discrimination_gender_custom_text.strip():
+    validation_error("Enter the statement you want to include.", field="discrimination_gender_custom_text")
+---
+sets:
+  - spouse.name.first
+  - spouse.name.middle
+  - spouse.name.last
+  - spouse.name.suffix
+id: spouse current name
+question: |
+  Your spouse's current legal name
+subquestion: |
+  Enter your spouse's current full legal name.
+fields:
+  - code: |
+      spouse.name_fields(
+        person_or_business="person",
+        show_suffix=True
+      )
+---
+id: spouse birthdate
+question: |
+  ${ spouse.name.first }'s date of birth
+subquestion: |
+  Enter ${ spouse.name.first }'s date of birth.
+fields:
+  - Date of birth: spouse.birthdate
+    datatype: ThreePartsDate
+---
+id: spouse same address
+question: |
+  ${ spouse.name.first }'s address
+fields:
+  - Is ${ spouse.name.first }'s address the same as yours?: spouse_address_same_as_user
+    datatype: yesnoradio
+---
+id: spouse address
+sets:
+  - spouse.address.address
+  - spouse.address.city
+question: |
+  ${ spouse.name.first }'s address
+subquestion: |
+  Enter ${ spouse.name.first }'s address.
+fields:
+  - code: |
+      spouse.address_fields(default_state="MI")
+---
+id: spouse phone
+question: |
+  ${ spouse.name.first }'s phone number
+subquestion: |
+  Enter ${ spouse.name.first }'s phone number.
+fields:
+  - Phone number: spouse.phone_number
+    datatype: al_international_phone
+---
+id: spouse proposed name
+question: |
+  ${ spouse.name.first }'s new name
+subquestion: |
+  Enter ${ spouse.name.first }'s **new** name.
+fields:
+  - First name: spouse.new_name.first
+  - Middle name: spouse.new_name.middle
+    required: False
+  - Last name: spouse.new_name.last
+  - Suffix (if any): spouse.new_name.suffix
+    required: False
+    code: |
+      name_suffix()
+---
+id: changing children names part one guardian
+if: |
+  petitioner_relationship_to_children == "guardian"
+continue button field: children_part_one_complete
+question: |
+  Changing Your Children's Names, Part 1
+fields:
+  - label: |
+      How many minor children's names should be included in this petition?
+
+      ***All children listed in this petition must be under the age of 18.***
+    field: children.target_number
+    datatype: integer
+    min: 1
+    validation messages:
+      min: |
+        You need to have at least one minor child that you are requesting a name change for.
+---
+id: changing children names part one
+if: |
+  petitioner_relationship_to_children == "biological"
+continue button field: children_part_one_complete
+question: |
+  Changing Your Children's Names, Part 1
+fields:
+  - Do you have legal custody of all the children whose names you want to change? This could be joint legal custody or sole legal custody.: petitioner_has_legal_custody_of_all_children
+    datatype: yesnoradio
+  - note: |
+      **Sorry, but this tool is not right for you. You must have legal custody of the child to apply for that child's name change.**
+    js show if: |
+      val("petitioner_has_legal_custody_of_all_children") === false
+  - Do all of the children whose names you want to change have the same other parent?: children_have_same_other_parent
+    datatype: yesnoradio
+    js show if: |
+      val("petitioner_has_legal_custody_of_all_children")
+  - note: |
+      **With this tool, the children whose names are being changed must have the same two parents.**
+
+      **If you want to change the names of children with a different other parent, you must file a separate petition.**
+    js show if: |
+      val("petitioner_has_legal_custody_of_all_children") && val("children_have_same_other_parent") === false
+  - Is ${ spouse.name.first if change_spouse_name else "your spouse" } the children's other parent?: spouse_is_other_parent
+    datatype: yesnoradio
+    js show if: |
+      val("petitioner_has_legal_custody_of_all_children") && val("children_have_same_other_parent")
+  - label: |
+      How many minor children's names should be included in this petition?
+
+      ***All children listed in this petition must have the same other parent and be under the age of 18.***
+    field: children.target_number
+    datatype: integer
+    min: 1
+    js show if: |
+      val("petitioner_has_legal_custody_of_all_children") && val("children_have_same_other_parent")
+    validation messages:
+      min: |
+        You need to have at least one minor child that you are requesting a name change for.
+---
+id: children legal custody kickout
+event: children_legal_custody_kickout
+question: |
+  Changing Your Children's Names, Part 1
+subquestion: |
+  **Sorry, but this tool is not right for you. You must have legal custody of the child to apply for that child's name change.**
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: children different parents kickout
+event: children_different_parents_kickout
+question: |
+  This tool cannot put these children on one petition
+subquestion: |
+  The children in this petition must have the same other parent. File a separate petition for children with a different other parent.
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+sets:
+  - other_parent.name.first
+  - other_parent.name.middle
+  - other_parent.name.last
+  - other_parent.name.suffix
+id: other parent current name
+question: |
+  The children's other parent
+subquestion: |
+  Enter the other parent's full name.
+fields:
+  - code: |
+      other_parent.name_fields(
+        person_or_business="person",
+        show_suffix=True
+      )
+---
+code: |
+  children_other_parent = spouse if spouse_is_other_parent else other_parent
+---
+id: initialize children other parent status
+code: |
+  # HotDocs automatically treats a spouse who is changing their name
+  # and is the children's other parent as participating and agreeing.
+  children_other_parent_questions_needed = not (
+    change_spouse_name and spouse_is_other_parent
+  )
+
+  if not children_other_parent_questions_needed:
+    children_other_parent.is_alive = True
+    children_other_parent.whereabouts_known = True
+    children_other_parent.has_joint_legal_custody = True
+    children_other_parent.joins_child_name_change_request = True
+    children_other_parent.agrees_to_name_change = True
+    children_other_parent.failed_contact_two_years = False
+    children_other_parent.abuse_conviction = False
+    children_other_parent.murder_conviction = False
+
+---
+id: changing children names part two
+undefine:
+  - children_other_parent.is_alive
+  - children_other_parent.whereabouts_known
+  - children_other_parent.has_joint_legal_custody
+  - children_other_parent.joins_child_name_change_request
+  - children_other_parent.agrees_to_name_change
+  - children_other_parent.failed_contact_two_years
+  - children_other_parent.abuse_conviction
+  - children_other_parent.murder_conviction
+question: |
+  Changing Your Children's Names, Part 2
+subquestion: |
+  **Warning!** If you're trying to change the name of a child, all parents who share legal custody of the child have to agree to the proposed name change. Only a custodial parent can request a child's name be changed. However, the noncustodial parent must be given notice of the name change and hearing notice. If you want to learn more about changing a child's name, please return to **Michigan Legal Help** and read the [Changing Your Minor Child's Name](https://michiganlegalhelp.org/resources/family/changing-your-minor-childs-name) article.
+fields:
+  - Is ${ children_other_parent.name.first } still alive?: children_other_parent.is_alive
+    datatype: yesnoradio
+    show if:
+      code: |
+        children_other_parent_questions_needed
+
+  - Do you know where ${ children_other_parent.name.first } lives?: children_other_parent.whereabouts_known
+    datatype: yesnoradio
+    js show if: |
+      val("children_other_parent.is_alive")
+
+  - Does ${ children_other_parent.name.first } have joint legal custody of the ${ "child" if children.target_number == 1 else "children" }?: children_other_parent.has_joint_legal_custody
+    datatype: yesnoradio
+    js show if: |
+      val("children_other_parent.is_alive")
+
+  - Is ${ children_other_parent.name.first } also asking the judge to change your ${ "child's name" if children.target_number == 1 else "children's names" }?: children_other_parent.joins_child_name_change_request
+    datatype: yesnoradio
+    js show if: |
+      val("children_other_parent.is_alive") && val("children_other_parent.whereabouts_known") && val("children_other_parent.has_joint_legal_custody")
+
+  - Does ${ children_other_parent.name.first } agree with the name change?: children_other_parent.agrees_to_name_change
+    datatype: yesnoradio
+    js show if: |
+      val("children_other_parent.is_alive") && (!val("children_other_parent.has_joint_legal_custody") || (val("children_other_parent.whereabouts_known") && !val("children_other_parent.joins_child_name_change_request")))
+
+  - note: |
+      **We're sorry, this tool is not right for you. You cannot ask a judge to change the name of your child if your child's other parent has custody, but his or her whereabouts are unknown. You may want to contact a lawyer to help you with this matter. You can use the [Guide to Legal Help](https://michiganlegalhelp.org/guide-to-legal-help) on Michigan Legal Help to find a lawyer or a legal services office near you.**
+    js show if: |
+      val("children_other_parent.is_alive") && !val("children_other_parent.whereabouts_known") && val("children_other_parent.has_joint_legal_custody")
+
+  - Has ${ children_other_parent.name.first } failed to visit, contact, or communicate with the ${ "child" if children.target_number == 1 else "children" } for the last two years?: children_other_parent.failed_contact_two_years
+    datatype: yesnoradio
+    js show if: |
+      val("children_other_parent.is_alive") && !val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.agrees_to_name_change")
+
+  - Has ${ children_other_parent.name.first } been convicted of child abuse, criminal sexual conduct, or assault with intent to commit criminal sexual conduct with the ${ "child" if children.target_number == 1 else "children" } or a sibling of the ${ "child" if children.target_number == 1 else "children" } as the victim?: children_other_parent.abuse_conviction
+    datatype: yesnoradio
+    js show if: |
+      val("children_other_parent.is_alive") && !val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.agrees_to_name_change")
+
+  - note: |
+      **Attach a copy of the judgment of sentence.**
+    js show if: |
+      val("children_other_parent.abuse_conviction")
+
+  - Has ${ children_other_parent.name.first } been convicted of first degree murder or second degree murder?: children_other_parent.murder_conviction
+    datatype: yesnoradio
+    js show if: |
+      val("children_other_parent.is_alive") && !val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.agrees_to_name_change")
+
+  - note: |
+      **Attach a copy of the judgment of murder sentence.**
+    js show if: |
+      val("children_other_parent.murder_conviction")
+
+  - note: |
+      **Sorry, Michigan law requires the agreement of both parents to change a minor's name except under limited circumstances. Based on your answers, none of these circumstances are present in your case.**
+    js show if: |
+      val("children_other_parent.is_alive") && !val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.agrees_to_name_change") && !val("children_other_parent.failed_contact_two_years") && !val("children_other_parent.abuse_conviction") && !val("children_other_parent.murder_conviction")
+
+  - note: |
+      **Sorry, this tool is not right for you. Both parents with joint legal custody must agree to the child's name change.**
+    js show if: |
+      val("children_other_parent.is_alive") && val("children_other_parent.whereabouts_known") && val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.joins_child_name_change_request") && !val("children_other_parent.agrees_to_name_change")
+
+continue button field: children_part_two
+validation code: |
+  # Hidden fields have no answer. Define only the values needed by later branches.
+  if not children_other_parent.is_alive:
+    children_other_parent.whereabouts_known = False
+    children_other_parent.has_joint_legal_custody = False
+    children_other_parent.joins_child_name_change_request = False
+    children_other_parent.agrees_to_name_change = False
+  elif not children_other_parent.has_joint_legal_custody or not children_other_parent.whereabouts_known:
+    children_other_parent.joins_child_name_change_request = False
+  if children_other_parent.is_alive and children_other_parent.has_joint_legal_custody and children_other_parent.whereabouts_known and children_other_parent.joins_child_name_change_request:
+    children_other_parent.agrees_to_name_change = True
+  elif children_other_parent.is_alive and children_other_parent.has_joint_legal_custody and not children_other_parent.whereabouts_known:
+    children_other_parent.agrees_to_name_change = False
+  if not children_other_parent.is_alive or children_other_parent.has_joint_legal_custody or children_other_parent.agrees_to_name_change:
+    children_other_parent.failed_contact_two_years = False
+    children_other_parent.abuse_conviction = False
+    children_other_parent.murder_conviction = False
+---
+id: children other parent contact information
+sets:
+  - children_other_parent.address.address
+  - children_other_parent.address.unit
+  - children_other_parent.address.city
+  - children_other_parent.address.state
+  - children_other_parent.address.zip
+  - children_other_parent.phone_number
+question: |
+  More Information About ${ children_other_parent.name.first }
+subquestion: |
+  Enter ${ children_other_parent.name.first }'s address and phone number.
+fields:
+  - code: |
+      children_other_parent.address_fields(default_state="MI")
+  - Phone number: children_other_parent.phone_number
+    datatype: al_international_phone
+    required: False
+---
+id: custodial parent whereabouts unknown kickout
+event: custodial_parent_whereabouts_unknown_kickout
+question: |
+  This tool is not right for you
+subquestion: |
+  We're sorry, this tool is not right for you. You cannot ask a judge to change the name of your child if your child's other parent has custody, but his or her whereabouts are unknown. You may want to contact a lawyer to help you with this matter. You can use the [Guide to Legal Help](https://michiganlegalhelp.org/guide-to-legal-help) on Michigan Legal Help to find a lawyer or a legal services office near you.
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: joint custody parent disagrees kickout
+event: joint_custody_parent_disagrees_kickout
+question: |
+  This tool is not right for you
+subquestion: |
+  Sorry, this tool is not right for you. Both parents with joint legal custody must agree to the child's name change.
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+id: no parental consent exception kickout
+event: no_parental_consent_exception_kickout
+question: |
+  This tool is not right for you
+subquestion: |
+  Sorry, Michigan law requires the agreement of both parents to change a minor's name except under limited circumstances. Based on your answers, none of these circumstances are present in your case.
+
+  If you think you made a mistake, tap **Undo** and change your answer.
+action buttons:
+  - label: Exit
+    action: https://michiganlegalhelp.org
+    new window: True
+    color: danger
+    icon: right-from-bracket
+---
+sets:
+  - children[i].name.first
+  - children[i].name.middle
+  - children[i].name.last
+  - children[i].name.suffix
+id: child current legal name
+question: |
+  What is your ${ ordinal(i) } child's current legal name?
+subquestion: |
+  Enter the current full legal name of the ${ ordinal(i) } child whose name is being changed.
+fields:
+  - code: |
+      children[i].name_fields(
+        person_or_business="person",
+        show_suffix=True
+      )
+---
+generic object: ALIndividual
+id: child date of birth
+question: |
+  ${ x.name.first }'s age
+subquestion: |
+  Enter ${ x.name.first }'s date of birth.
+fields:
+  - Date of birth: x.birthdate
+    datatype: ThreePartsDate
+validation code: |
+  if x.birthdate > today():
+    validation_error("Enter a date of birth that is not in the future.", field="x.birthdate")
+---
+generic object: ALIndividual
+id: child proposed new name
+question: |
+  ${ x.name.first }'s New Name
+subquestion: |
+  % if x.age_in_years() >= 18:
+  **The judge may not allow you to change your adult child's name. Contact ${ county_choice } County Circuit Court to find out if your adult child will be required to file a separate petition for himself or herself. Use the “Court Information” section of Michigan Legal Help to get the courts contact information.**
+  % elif x.age_in_years() >= 14:
+  In order to change the name of a minor child who is 14-17 years old, the child must sign a consent form. This tool will produce the consent form for ${ x.name.first }.
+  % else:
+  Because ${ x.name.first } is is younger than 14 years old (typically seven or older), the judge will decide if they are capable of expressing his/her preference, and will consider your child's wishes.
+  % endif
+
+  Enter ${ x.name.first }'s **new name**.
+fields:
+  - First name: x.new_name.first
+  - Middle name: x.new_name.middle
+    required: False
+  - Last name: x.new_name.last
+  - Suffix (if any): x.new_name.suffix
+    required: False
+    code: |
+      name_suffix()
+---
+generic object: ALIndividual
+code: |
+  x.name.first
+  x.birthdate
+  x.new_name.first
+  x.name_change_complete = True
+---
+code: |
+  people_changing_names = []
+  if change_petitioner_name:
+    people_changing_names.append(users[0])
+  if change_spouse_name:
+    people_changing_names.append(spouse)
+  if change_children_names:
+    people_changing_names.extend(children)
+---
+code: |
+  danger_for_petitioner_only = change_petitioner_name and users[0] in publication_danger_people and len(publication_danger_people) == 1 and not ("someone_else" in publication_danger_selected_values)
+  danger_for_others_only = (not change_petitioner_name or users[0] not in publication_danger_people)
+  if danger_for_petitioner_only:
+    danger_identity_subject = "I am"
+    danger_identity_object = "me"
+  elif danger_for_others_only:
+    danger_identity_subject = "my family member is"
+    danger_identity_object = "my family"
+  else:
+    danger_identity_subject = "I am or my family member is"
+    danger_identity_object = "me or my family"
+  danger_gender_default_text = (
+    "Public notice of this proceeding would reveal to the public that {} a transgender person. "
+    "Data from the 2015 U.S. Transgender Survey shows that nationally, nearly half of transgender people reported being verbally "
+    "harassed and 9% reported being physically attacked in the past year because of being transgender (2015 U.S. Transgender Survey). "
+    "The Human Rights Campaign reports at least 34 transgender and gender-nonconforming people were killed in the United States in "
+    "2022 (Epidemic of Violence 2022 Report, HRC). I request that you keep this name change proceedings confidential to avoid public "
+    "disclosure of transgender status which I fear, and the data shows, would increase the risk of {} experiencing violence."
+  ).format(danger_identity_subject, danger_identity_object)
+---
+code: |
+  discrimination_for_petitioner_only = change_petitioner_name and users[0] in discrimination_people and len(discrimination_people) == 1 and not ("someone_else" in discrimination_selected_values)
+  discrimination_for_others_only = (not change_petitioner_name or users[0] not in discrimination_people)
+  if discrimination_for_petitioner_only:
+    discrimination_identity_subject = "I am"
+    discrimination_identity_object = "me"
+  elif discrimination_for_others_only:
+    discrimination_identity_subject = "my family member is"
+    discrimination_identity_object = "my family"
+  else:
+    discrimination_identity_subject = "I am or my family member is"
+    discrimination_identity_object = "me or my family"
+  discrimination_gender_default_text = (
+    "Public notice of this proceeding would reveal to the public that {} a transgender person. "
+    "Transgender individuals often face pervasive discrimination in multiple parts of their lives, including in employment and housing. "
+    "Data from the 2015 U.S. Transgender Survey shows that nationally, 19% of transgender people reported being fired, not hired, or "
+    "denied a promotion in the past year because they were transgender. 23% indicated they experienced housing discrimination in the "
+    "past year (2015 U.S. Transgender Survey). I request that you keep this name change proceedings confidential to avoid public "
+    "disclosure of transgender status which I fear, and the data shows, would likely result in {} experiencing discrimination and harassment."
+  ).format(discrimination_identity_subject, discrimination_identity_object)
+---
+reconsider: True
+code: |
+  publication_harms_user_value = False
+  publication_harms_family_members_value = False
+  family_members_harmed_names = []
+  basis_of_fear_family_names = []
+  no_publication_detail_parts = []
+
+  if not publication_is_ok and why_not_publish["danger"]:
+    danger_names = [person.name.full(middle="full") for person in publication_danger_people]
+    if ("someone_else" in publication_danger_selected_values):
+      danger_names.append(publication_danger_someone_else_name)
+    danger_for_user = change_petitioner_name and users[0] in publication_danger_people
+    publication_harms_user_value = publication_harms_user_value or danger_for_user
+    danger_family_names = [
+      person.name.full(middle="full") for person in publication_danger_people
+      if person.instanceName != users[0].instanceName
+    ]
+    if ("someone_else" in publication_danger_selected_values):
+      danger_family_names.append(publication_danger_someone_else_name)
+    if danger_family_names:
+      publication_harms_family_members_value = True
+      basis_of_fear_family_names.extend(danger_family_names)
+      family_members_harmed_names.extend(danger_family_names)
+
+    danger_parts = []
+    if publication_danger_reasons["stalking"] or publication_danger_reasons["violence"]:
+      if publication_danger_reasons["stalking"] and publication_danger_reasons["violence"]:
+        danger_type = "physical violence and stalking"
+      elif publication_danger_reasons["stalking"]:
+        danger_type = "stalking"
+      else:
+        danger_type = "physical violence"
+      danger_parts.append("{} have been the subject of {}. The following incidents occurred:".format(comma_and_list(danger_names), danger_type))
+      for incident_number, incident in enumerate(publication_incidents, start=1):
+        danger_parts.append("{}. {}".format(incident_number, incident.details.rstrip(". ") + "."))
+      future_reasons = []
+      if publication_danger_future_risk["find_family"]:
+        future_reasons.append("it would make it easier for the perpetrator of the past stalking or violence to find my family")
+      if publication_danger_future_risk["reveal_gender_identity"]:
+        future_reasons.append("it would allow the perpetrator of the past stalking or violence to find out my family member's gender identity")
+      if future_reasons:
+        danger_parts.append("Publication would increase the danger in the future because {}.".format(comma_and_list(future_reasons)))
+    if publication_danger_reasons["gender_identity"]:
+      danger_parts.append(danger_gender_default_text if danger_gender_statement_choice == "default" else danger_gender_custom_text.rstrip(". ") + ".")
+    if publication_danger_reasons["other"]:
+      danger_parts.append("There is a risk of danger if information about this name change is published because {}.".format(publication_danger_other_reason.rstrip(". ")))
+    no_publication_detail_parts.append("Danger or greater likelihood of physical danger:\n" + "\n\n".join(danger_parts))
+
+  if not publication_is_ok and why_not_publish["discrimination"]:
+    discrimination_names = [person.name.full(middle="full") for person in discrimination_people]
+    if ("someone_else" in discrimination_selected_values):
+      discrimination_names.append(discrimination_someone_else_name)
+    discrimination_for_user = change_petitioner_name and users[0] in discrimination_people
+    publication_harms_user_value = publication_harms_user_value or discrimination_for_user
+    discrimination_family_names = [
+      person.name.full(middle="full") for person in discrimination_people
+      if person.instanceName != users[0].instanceName
+    ]
+    if ("someone_else" in discrimination_selected_values):
+      discrimination_family_names.append(discrimination_someone_else_name)
+    if discrimination_family_names:
+      publication_harms_family_members_value = True
+      family_members_harmed_names.extend(discrimination_family_names)
+      basis_of_fear_family_names.extend(discrimination_family_names)
+
+    discrimination_parts = []
+    if ("past_person" in discrimination_reason_values):
+      discrimination_parts.append("{} already experienced discrimination. {}. This discrimination is likely to continue or worsen if a notice is published or the record of the proceeding is available for access.".format(comma_and_list(discrimination_names), discrimination_history_person.rstrip(". ")))
+    if ("past_community" in discrimination_reason_values):
+      discrimination_parts.append("There has been past discrimination against other people in the community. {}. If a notice is published or the record of the proceeding is available for access, {} will be placed at risk of such discrimination.".format(discrimination_history_community.rstrip(". "), comma_and_list(discrimination_names)))
+    if ("gender_identity" in discrimination_reason_values):
+      discrimination_parts.append(discrimination_gender_default_text if discrimination_gender_statement_choice == "default" else discrimination_gender_custom_text.rstrip(". ") + ".")
+    if discrimination_additional:
+      discrimination_parts.append("Publishing information about this name change would increase the risk of discrimination because {}.".format(discrimination_additional_reason.rstrip(". ")))
+    no_publication_detail_parts.append("Risk of unlawful discrimination or retaliation:\n" + "\n\n".join(discrimination_parts))
+
+  # Preserve the order in which names first appear and remove duplicates.
+  family_members_harmed_names = list(dict.fromkeys(family_members_harmed_names))
+  basis_of_fear_family_names = list(dict.fromkeys(basis_of_fear_family_names))
+  family_members_harmed_by_publication_value = comma_and_list(family_members_harmed_names)
+  basis_of_fear_family_members_list_value = comma_and_list(basis_of_fear_family_names)
+  no_publication_and_basis_of_fear_details_value = "\n\n".join(no_publication_detail_parts)
+---
+id: DownloadScreen
+event: MLH_download
+question: |
+  Get your ${ MLH_form_type }
+subquestion: |
+  You can **view**, **download**, or **e-mail** your ${ MLH_form_type } to yourself below. Tap the "✎ Review / Edit" button to fix any mistakes.
+
+  ${ optional_download_message }
+    
+  ## Download or e-mail your ${ MLH_form_type }
+
+  ${ action_button_html(url_action('review_full'), label='✎ Review / Edit', color='info') }
+  
+  ${ al_user_bundle.download_list_html() }
+
+  ${ al_user_bundle.send_button_html(show_editable_checkbox=False) }
+  
+  ## Take our quick survey!
+  Answer below or [open the survey in a new tab](${ survey_link_url_only }).
+  ${ survey_embed_script }
+progress: 100
+---
+objects:
+  - petition_for_name_change_pc51: ALDocument.using(
+      title="Petition for Name Change - PC 51",
+      filename="petition_for_name_change_pc_51"
+      )
+  - petition_for_name_change_pc51c: ALDocument.using(
+      title="Petition for Name Change and Ex Parte Request for Nonpublication and Confidential Record - PC 51c",
+      filename="petition_for_name_change_and_ex_parte_request_for_nonpublication_and_confidential_record_-_pc_51c"
+      )
+---
+code: |
+  petition_for_name_change_pc51.enabled = publication_is_ok
+  petition_for_name_change_pc51c.enabled = not publication_is_ok
+---
+objects:
+  - al_user_bundle: ALDocumentBundle.using(
+      elements=[
+        petition_for_name_change_pc51,
+        petition_for_name_change_pc51c
+      ],
+      filename="Michigan Name Change --all forms",
+      title="All forms and instructions",
+      enabled=True
+      )
+  - al_court_bundle: ALDocumentBundle.using(
+      elements=[
+        petition_for_name_change_pc51,
+        petition_for_name_change_pc51c
+      ],
+      filename="Michigan Name Change --all forms",
+      title="All forms",
+      enabled=True
+      )
+---
+attachment:
+  - name: Petition for Name Change
+    filename: petition_for_name_change_pc51
+    variable name: petition_for_name_change_pc51[i]
+    pdf template file: petition_for_name_change_pc51.pdf
+    #pdftk: True
+    editable: False
+    skip undefined: True
+    fields:
+      - trial_court: ${ the_court.number }
+      - case_number: ${ "" }
+      - trial_court_county: ${ the_court.address.county.upper() }
+      - trial_court_address_on_one_line: ${ the_court.address.on_one_line() }
+      - trial_court_phone_number: ${ the_court.phone }
+      - list_of_users_current_names: ${ comma_and_list([person.name.full(middle="full") for person in people_changing_names]) }
+      - petitioner_block: |
+          ${ users[0].name.full(middle="full") }
+          ${ users[0].address.line_one() }
+          ${ users[0].address.line_two() }
+          ${ phone_number_formatted(users[0].phone_number) }
+          
+      - petitioners_attorney_block:
+        
+      - has_previous_case: ${ family_court_cases }
+      - previous_case_court: ${ 'See "Confidential Case Inventory"' if family_court_cases else "" }
+      - previous_case_number:
+      - judge:
+      - previously_filed_case_remains_pending:
+      - previously_filed_case_no_longer_pending:
+        
+      - name_change_for: ${ True }
+      - name_change_for_married_user: ${ name_change_target_group == "both" or change_spouse_name }
+      - name_change_for_spouse: ${ change_spouse_name }
+      - name_change_for_minor_children: ${ change_children_names }
+      - name_change_for_adult_only: ${ change_petitioner_name and not change_spouse_name and not change_children_names and (not petitioner_is_minor or emancipated_minor) }
+      - emancipated_minor_note: ${ "(Emancipated minor)" if petitioner_is_minor and emancipated_minor else "" }
+      - name_change_for_minor_only: ${ (petitioner_is_minor and not emancipated_minor) or (change_children_names and not change_petitioner_name) }
+      - includes_request_for_minor: ${ (petitioner_is_minor and not emancipated_minor) or change_children_names }
+        
+      - first_parent_name: ${ (minor_parent_one.name.full(middle="full") + (" - Deceased" if not minor_parent_one.is_alive else "")) if ((petitioner_is_minor and not emancipated_minor) or (change_children_names and petitioner_relationship_to_children == "guardian")) else (users[0].name.full(middle="full") if change_children_names and petitioner_relationship_to_children == "biological" else "") }
+      - first_parent_is_deceased: ${ ((petitioner_is_minor and not emancipated_minor) or (change_children_names and petitioner_relationship_to_children == "guardian")) and not minor_parent_one.is_alive }
+        
+      - second_parent_name: ${ (minor_parent_two.name.full(middle="full") + (" - Deceased" if not minor_parent_two.is_alive else "")) if ((petitioner_is_minor and not emancipated_minor) or (change_children_names and petitioner_relationship_to_children == "guardian")) else ((children_other_parent.name.full(middle="full") + (" - Deceased" if not children_other_parent.is_alive else "")) if change_children_names and petitioner_relationship_to_children == "biological" else "") }
+      - second_parent_is_deceased: ${ (((petitioner_is_minor and not emancipated_minor) or (change_children_names and petitioner_relationship_to_children == "guardian")) and not minor_parent_two.is_alive) or (change_children_names and petitioner_relationship_to_children == "biological" and not children_other_parent.is_alive) }
+      - minor_guardian_name: ${ minor_guardian.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) and minor_first_signing_parent is minor_guardian else "" }
+      - mentally_incompetent_parent_guardian:
+        
+      - minor_consent: ${ (petitioner_is_minor and not emancipated_minor) }
+        
+      - consent_parents_jointly: ${ ((petitioner_is_minor and not emancipated_minor) and minor_parent_one.is_alive and minor_parent_two.is_alive and minor_parent_one.agrees_to_name_change and minor_parent_two.agrees_to_name_change) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and children_other_parent.agrees_to_name_change) }
+      - consent_sole_surviving_parent: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and minor_parent_one.agrees_to_name_change and not minor_parent_two.is_alive) or (minor_parent_two.is_alive and minor_parent_two.agrees_to_name_change and not minor_parent_one.is_alive))) or (change_children_names and petitioner_relationship_to_children == "biological" and not children_other_parent.is_alive) }
+      - consent_only_available_parent: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and minor_parent_one.agrees_to_name_change and not minor_parent_two.is_alive) or (minor_parent_two.is_alive and minor_parent_two.agrees_to_name_change and not minor_parent_one.is_alive) or (minor_parent_one.is_alive and minor_parent_two.is_alive and ((minor_parent_one.agrees_to_name_change and not minor_parent_two.has_legal_custody) or (minor_parent_two.agrees_to_name_change and not minor_parent_one.has_legal_custody))))) or (change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and (not children_other_parent.is_alive or not children_other_parent.has_joint_legal_custody)) }
+      - consent_guardian: ${ (change_children_names and petitioner_relationship_to_children == "guardian") or ((petitioner_is_minor and not emancipated_minor) and minor_first_signing_parent is minor_guardian) }
+      - consent_guardian_of_mentally_incompetent_parent:
+        
+      - reason_for_name_change: ${ reason_for_name_change }
+        
+      - petitioner_has_criminal_record: ${ change_petitioner_name and "petitioner" in people_with_criminal_records.true_values() }
+      - petitioner_no_criminal_record: ${ change_petitioner_name and "petitioner" not in people_with_criminal_records.true_values() }
+      - petitioner_criminal_record: ${ "; ".join("{} ({})".format(record.charge, record.date) for record in criminal_records if record.person == "petitioner") }
+        
+      - petitioner_has_spouse_or_child: ${ change_spouse_name or change_children_names }
+        
+      - spouse_or_child_no_criminal_record: ${ (change_spouse_name or change_children_names) and not any(subject in people_with_criminal_records.true_values() for subject in ("spouse", "minor_child")) }
+      - spouse_or_child_has_no_criminal_record: ${ any(subject in people_with_criminal_records.true_values() for subject in ("spouse", "minor_child")) }
+      - spouse_or_child_criminal_record: >-
+          ${ "; ".join(
+          "{}: {}".format(label, "; ".join("{} ({})".format(record.charge, record.date) for record in criminal_records if record.person == subject))
+          for subject, label in (("spouse", "Spouse"), ("minor_child", "A minor child"))
+          if any(record.person == subject for record in criminal_records)
+          ) }
+      - case_number__1:
+        
+      - consent_from_custodial_parent: ${ ((petitioner_is_minor and not emancipated_minor) and minor_custody_exception_applies) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and not children_other_parent.agrees_to_name_change and (children_other_parent.failed_contact_two_years or children_other_parent.abuse_conviction or children_other_parent.murder_conviction)) }
+        
+      - noncustodial_parent_failed_to_have_relationship: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.failed_contact_two_years) or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.failed_contact_two_years))) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and children_other_parent.failed_contact_two_years) }
+      - noncustodial_parent_failed_to_comply_with_support_order: ${ (petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.failed_contact_two_years and minor_parent_one.support_failure_type == "support_order") or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.failed_contact_two_years and minor_parent_two.support_failure_type == "support_order")) }
+      - noncustodial_parent_failed_to_provide_support_without_order: ${ (petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.failed_contact_two_years and minor_parent_one.support_failure_type == "no_support_order") or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.failed_contact_two_years and minor_parent_two.support_failure_type == "no_support_order")) }
+      - noncustodial_parent_has_abuse_conviction: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.abuse_conviction) or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.abuse_conviction))) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and children_other_parent.abuse_conviction) }
+      - noncustodial_parent_has_murder_conviction: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.murder_conviction) or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.murder_conviction))) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and children_other_parent.murder_conviction) }
+        
+      - petitioner_old_first_name: ${ users[0].name.first if change_petitioner_name else "" }
+      - petitioner_old_middle_name: ${ users[0].name.middle if change_petitioner_name else "" }
+      - petitioner_old_last_name: ${ (users[0].name.last + (", " + users[0].name.suffix if users[0].name.suffix else "")) if change_petitioner_name else "" }
+      - petitioner_new_first_name: ${ users[0].new_name.first if change_petitioner_name else "" }
+      - petitioner_new_middle_name: ${ users[0].new_name.middle if change_petitioner_name else "" }
+      - petitioner_new_last_name: ${ (users[0].new_name.last + (", " + users[0].new_name.suffix if users[0].new_name.suffix else "")) if change_petitioner_name else "" }
+        
+      - spouse_old_first_name: ${ spouse.name.first if change_spouse_name else "" }
+      - spouse_old_middle_name: ${ spouse.name.middle if change_spouse_name else "" }
+      - spouse_old_last_name: ${ (spouse.name.last + (", " + spouse.name.suffix if spouse.name.suffix else "")) if change_spouse_name else "" }
+      - spouse_new_first_name: ${ spouse.new_name.first if change_spouse_name else "" }
+      - spouse_new_middle_name: ${ spouse.new_name.middle if change_spouse_name else "" }
+      - spouse_new_last_name: ${ (spouse.new_name.last + (", " + spouse.new_name.suffix if spouse.new_name.suffix else "")) if change_spouse_name else "" }
+        
+      - minor_child1_old_first_name: ${ children[0].name.first if change_children_names and len(children) > 0 else "" }
+      - minor_child1_old_middle_name: ${ children[0].name.middle if change_children_names and len(children) > 0 else "" }
+      - minor_child1_old_last_name: ${ (children[0].name.last + (", " + children[0].name.suffix if children[0].name.suffix else "")) if change_children_names and len(children) > 0 else "" }
+      - minor_child1_new_first_name: ${ children[0].new_name.first if change_children_names and len(children) > 0 else "" }
+      - minor_child1_new_middle_name: ${ children[0].new_name.middle if change_children_names and len(children) > 0 else "" }
+      - minor_child1_new_last_name: ${ (children[0].new_name.last + (", " + children[0].new_name.suffix if children[0].new_name.suffix else "")) if change_children_names and len(children) > 0 else "" }
+        
+      - minor_child2_old_first_name: ${ children[1].name.first if change_children_names and len(children) > 1 else "" }
+      - minor_child2_old_middle_name: ${ children[1].name.middle if change_children_names and len(children) > 1 else "" }
+      - minor_child2_old_last_name: ${ (children[1].name.last + (", " + children[1].name.suffix if children[1].name.suffix else "")) if change_children_names and len(children) > 1 else "" }
+      - minor_child2_new_first_name: ${ children[1].new_name.first if change_children_names and len(children) > 1 else "" }
+      - minor_child2_new_middle_name: ${ children[1].new_name.middle if change_children_names and len(children) > 1 else "" }
+      - minor_child2_new_last_name: ${ (children[1].new_name.last + (", " + children[1].new_name.suffix if children[1].new_name.suffix else "")) if change_children_names and len(children) > 1 else "" }
+        
+      - wants_new_birth_certifcate: ${ birth_certificate_option == "option_two" }
+      - new_birth_certificate_sealed_names: ${ comma_and_list([person.name.full(middle="full") for person in people_for_sealed_birth_certificate]) if birth_certificate_option == "option_two" else "" }
+        
+      - signature_date: ${ format_date(signature_date, format="MM/dd/yyyy") if MLH_esign and MLH_esign_supported else "" }
+      - petitioner_signature: |
+          % if MLH_esign and MLH_esign_supported:
+          /s/ ${ users[0].name.full(middle="full") }
+          % else:
+          ${ "" }
+          % endif
+      - petitioner_signature_esign_cite: ${ MLH_esign_tag if MLH_esign and MLH_esign_supported else "" }
+      - attorney_signature: ${ "Self-represented" }
+      - case_number__2:
+        
+      - first_parent_or_guardian_signature_date: ${ format_date(signature_date, format="MM/dd/yyyy") if change_children_names and MLH_esign and MLH_esign_supported else "" }
+      - first_parent_or_guardian_signature: |
+          % if change_children_names and MLH_esign and MLH_esign_supported:
+          /s/ ${ users[0].name.full(middle="full") }
+          % else:
+          ${ "" }
+          % endif
+      - first_parent_signature_esign_cite: ${ MLH_esign_tag if change_children_names and MLH_esign and MLH_esign_supported else "" }
+      - first_parent_or_guardian_name: ${ users[0].name.full(middle="full") if change_children_names else (minor_first_signing_parent.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) else "") }
+      - first_parent_or_guardian_address_line_one: ${ users[0].address.line_one() if change_children_names else (minor_first_signing_parent.address.line_one() if (petitioner_is_minor and not emancipated_minor) else "") }
+      - first_parent_or_guardian_address_line_two: ${ users[0].address.line_two() if change_children_names else (minor_first_signing_parent.address.line_two() if (petitioner_is_minor and not emancipated_minor) else "") }
+      - first_parent_or_guardian_phone_number: ${ phone_number_formatted(users[0].phone_number) if change_children_names else (phone_number_formatted(minor_first_signing_parent.phone_number) if (petitioner_is_minor and not emancipated_minor) and minor_first_signing_parent.phone_number else "") }
+
+      - second_parent_or_guardian_name: ${ children_other_parent.name.full(middle="full") if change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and children_other_parent.agrees_to_name_change else (minor_second_signing_parent.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent else "") }
+      - second_parent_or_guardian_address_line_one: |
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          ${ users[0].address.line_one() if spouse_address_same_as_user else spouse.address.line_one() }
+          % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
+          ${ other_parent.address.line_one() }
+          % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent:
+          ${ minor_second_signing_parent.address.line_one() }
+          % endif
+      - second_parent_or_guardian_address_line_two: |
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          ${ users[0].address.line_two() if spouse_address_same_as_user else spouse.address.line_two() }
+          % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
+          ${ other_parent.address.line_two() }
+          % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent:
+          ${ minor_second_signing_parent.address.line_two() }
+          % endif
+      - second_parent_or_guardian_phone_number: |
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          ${ phone_number_formatted(spouse.phone_number) }
+          % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change and other_parent.phone_number:
+          ${ phone_number_formatted(other_parent.phone_number) }
+          % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent and minor_second_signing_parent.phone_number:
+          ${ phone_number_formatted(minor_second_signing_parent.phone_number) }
+          % endif
+      
+      - consenting_spouse_name: ${ spouse.name.full(middle="full") if change_spouse_name else "" }
+      - consenting_spouse_address_line_one: ${ (users[0].address.line_one() if spouse_address_same_as_user else spouse.address.line_one()) if change_spouse_name else "" }
+      - consenting_spouse_address_line_two: ${ (users[0].address.line_two() if spouse_address_same_as_user else spouse.address.line_two()) if change_spouse_name else "" }
+      - consenting_spouse_phone_number: ${ spouse.phone_numbers() if change_spouse_name else "" }
+        
+      - attorney_signature__1:
+      - attorney_name:
+      - attorney_bar_number:
+      - attorney_address_line_one:
+      - attorney_address_line_two:
+      - attorney_phone_number:
+        
+      - consenting_minor1_signature_date: ${ format_date(signature_date, format="MM/dd/yyyy") if petitioner_is_minor and not emancipated_minor and MLH_esign and MLH_esign_supported else "" }
+      - consenting_minor1_signature: ${ "/s/ " + users[0].name.full(middle="full") if petitioner_is_minor and not emancipated_minor and MLH_esign and MLH_esign_supported else "" }
+      - minor_signature_esign_cite: ${ MLH_esign_tag if petitioner_is_minor and not emancipated_minor and MLH_esign and MLH_esign_supported else "" }
+      - consenting_minor1_name: ${ users[0].name.full(middle="full") if petitioner_is_minor and not emancipated_minor else "" }
+        
+      - consenting_minor2_name:
+---
+attachment:
+  - name: Petition for Name Change and Ex Parte Request for Nonpublication and Confidential Record - PC 51c
+    filename: petition_for_name_change_pc51c
+    variable name: petition_for_name_change_pc51c[i]
+    pdf template file: petition_for_name_change_pc51c.pdf
+    #pdftk: True
+    editable: False
+    skip undefined: True
+    fields:
+      - trial_court: ${ the_court.number }
+      - case_number:
+      - trial_court_county: ${ the_court.address.county.upper() }
+      - trial_court_address_on_one_line: ${ the_court.address.on_one_line() }
+      - trial_court_phone_number: ${ the_court.phone }
+      - list_of_users_current_names: ${ comma_and_list([person.name.full(middle="full") for person in people_changing_names]) }
+        
+      - petitioner_block: |
+          ${ users[0].name.full(middle="full") }
+          ${ users[0].address.line_one() }
+          ${ users[0].address.line_two() }
+          ${ phone_number_formatted(users[0].phone_number) }
+      - petitioners_attorney_block:
+        
+      - has_previous_case: ${ family_court_cases }
+      - previous_case_court: ${ 'See "Confidential Case Inventory"' if family_court_cases else "" }
+        
+      - previous_case_number:
+      - judge:
+      - previously_filed_case_remains_pending:
+      - previously_filed_case_no_longer_pending:
+        
+      - name_change_for: ${ True }
+      - name_change_for_married_user: ${ name_change_target_group == "both" or change_spouse_name }
+      - name_change_for_spouse: ${ change_spouse_name }
+      - name_change_for_minor_children: ${ change_children_names }
+      - name_change_for_adult_only: ${ change_petitioner_name and not change_spouse_name and not change_children_names and (not petitioner_is_minor or emancipated_minor) }
+      - emancipated_minor_note: ${ "(Emancipated minor)" if petitioner_is_minor and emancipated_minor else "" }
+      - name_change_for_minor_only: ${ (petitioner_is_minor and not emancipated_minor) or (change_children_names and not change_petitioner_name) }
+      - includes_request_for_minor: ${ (petitioner_is_minor and not emancipated_minor) or change_children_names }
+        
+      - first_parent_name: ${ (minor_parent_one.name.full(middle="full") + (" - Deceased" if not minor_parent_one.is_alive else "")) if ((petitioner_is_minor and not emancipated_minor) or (change_children_names and petitioner_relationship_to_children == "guardian")) else (users[0].name.full(middle="full") if change_children_names and petitioner_relationship_to_children == "biological" else "") }
+      - first_parent_is_deceased: ${ ((petitioner_is_minor and not emancipated_minor) or (change_children_names and petitioner_relationship_to_children == "guardian")) and not minor_parent_one.is_alive }
+        
+      - second_parent_name: ${ (minor_parent_two.name.full(middle="full") + (" - Deceased" if not minor_parent_two.is_alive else "")) if ((petitioner_is_minor and not emancipated_minor) or (change_children_names and petitioner_relationship_to_children == "guardian")) else ((children_other_parent.name.full(middle="full") + (" - Deceased" if not children_other_parent.is_alive else "")) if change_children_names and petitioner_relationship_to_children == "biological" else "") }
+      - second_parent_is_deceased: ${ (((petitioner_is_minor and not emancipated_minor) or (change_children_names and petitioner_relationship_to_children == "guardian")) and not minor_parent_two.is_alive) or (change_children_names and petitioner_relationship_to_children == "biological" and not children_other_parent.is_alive) }
+        
+      - minor_guardian_name: ${ minor_guardian.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) and minor_first_signing_parent is minor_guardian else "" }
+      - mentally_incompetent_parent_guardian:
+      - minor_consent: ${ (petitioner_is_minor and not emancipated_minor) }
+        
+      - consent_parents_jointly: ${ ((petitioner_is_minor and not emancipated_minor) and minor_parent_one.is_alive and minor_parent_two.is_alive and minor_parent_one.agrees_to_name_change and minor_parent_two.agrees_to_name_change) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and children_other_parent.agrees_to_name_change) }
+      - consent_sole_surviving_parent: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and minor_parent_one.agrees_to_name_change and not minor_parent_two.is_alive) or (minor_parent_two.is_alive and minor_parent_two.agrees_to_name_change and not minor_parent_one.is_alive))) or (change_children_names and petitioner_relationship_to_children == "biological" and not children_other_parent.is_alive) }
+      - consent_only_available_parent: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and minor_parent_one.agrees_to_name_change and not minor_parent_two.is_alive) or (minor_parent_two.is_alive and minor_parent_two.agrees_to_name_change and not minor_parent_one.is_alive) or (minor_parent_one.is_alive and minor_parent_two.is_alive and ((minor_parent_one.agrees_to_name_change and not minor_parent_two.has_legal_custody) or (minor_parent_two.agrees_to_name_change and not minor_parent_one.has_legal_custody))))) or (change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and (not children_other_parent.is_alive or not children_other_parent.has_joint_legal_custody)) }
+      - consent_guardian: ${ (change_children_names and petitioner_relationship_to_children == "guardian") or ((petitioner_is_minor and not emancipated_minor) and minor_first_signing_parent is minor_guardian) }
+      - consent_guardian_of_mentally_incompetent_parent:
+        
+      - reason_for_name_change: ${ reason_for_name_change }
+        
+      - petitioner_has_criminal_record: ${ change_petitioner_name and "petitioner" in people_with_criminal_records.true_values() }
+      - petitioner_no_criminal_record: ${ change_petitioner_name and "petitioner" not in people_with_criminal_records.true_values() }
+      - petitioner_criminal_record: ${ "; ".join("{} ({})".format(record.charge, record.date) for record in criminal_records if record.person == "petitioner") }
+      - petitioner_has_spouse_or_child: ${ change_spouse_name or change_children_names }
+        
+      - spouse_or_child_no_criminal_record: ${ (change_spouse_name or change_children_names) and not any(subject in people_with_criminal_records.true_values() for subject in ("spouse", "minor_child")) }
+      - spouse_or_child_has_no_criminal_record: ${ any(subject in people_with_criminal_records.true_values() for subject in ("spouse", "minor_child")) }
+      - spouse_or_child_criminal_record: >-
+          ${ "; ".join(
+          "{}: {}".format(label, "; ".join("{} ({})".format(record.charge, record.date) for record in criminal_records if record.person == subject))
+          for subject, label in (("spouse", "Spouse"), ("minor_child", "A minor child"))
+          if any(record.person == subject for record in criminal_records)
+          ) }
+          
+      - case_number__1:
+        
+      - consent_from_custodial_parent: ${ ((petitioner_is_minor and not emancipated_minor) and minor_custody_exception_applies) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and not children_other_parent.agrees_to_name_change and (children_other_parent.failed_contact_two_years or children_other_parent.abuse_conviction or children_other_parent.murder_conviction)) }
+        
+      - noncustodial_parent_failed_to_have_relationship: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.failed_contact_two_years) or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.failed_contact_two_years))) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and children_other_parent.failed_contact_two_years) }
+      - noncustodial_parent_failed_to_comply_with_support_order: ${ (petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.failed_contact_two_years and minor_parent_one.support_failure_type == "support_order") or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.failed_contact_two_years and minor_parent_two.support_failure_type == "support_order")) }
+      - noncustodial_parent_failed_to_provide_support_without_order: ${ (petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.failed_contact_two_years and minor_parent_one.support_failure_type == "no_support_order") or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.failed_contact_two_years and minor_parent_two.support_failure_type == "no_support_order")) }
+      - noncustodial_parent_has_abuse_conviction: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.abuse_conviction) or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.abuse_conviction))) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and children_other_parent.abuse_conviction) }
+      - noncustodial_parent_has_murder_conviction: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and not minor_parent_one.has_legal_custody and not minor_parent_one.agrees_to_name_change and minor_parent_one.murder_conviction) or (minor_parent_two.is_alive and not minor_parent_two.has_legal_custody and not minor_parent_two.agrees_to_name_change and minor_parent_two.murder_conviction))) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and children_other_parent.murder_conviction) }
+        
+      - petitioner_old_first_name: ${ users[0].name.first if change_petitioner_name else "" }
+      - petitioner_old_middle_name: ${ users[0].name.middle if change_petitioner_name else "" }
+      - petitioner_old_last_name: ${ (users[0].name.last + (", " + users[0].name.suffix if users[0].name.suffix else "")) if change_petitioner_name else "" }
+      - petitioner_new_first_name: ${ users[0].new_name.first if change_petitioner_name else "" }
+      - petitioner_new_middle_name: ${ users[0].new_name.middle if change_petitioner_name else "" }
+      - petitioner_new_last_name: ${ (users[0].new_name.last + (", " + users[0].new_name.suffix if users[0].new_name.suffix else "")) if change_petitioner_name else "" }
+      - spouse_old_first_name: ${ spouse.name.first if change_spouse_name else "" }
+      - spouse_old_middle_name: ${ spouse.name.middle if change_spouse_name else "" }
+      - spouse_old_last_name: ${ (spouse.name.last + (", " + spouse.name.suffix if spouse.name.suffix else "")) if change_spouse_name else "" }
+      - spouse_new_first_name: ${ spouse.new_name.first if change_spouse_name else "" }
+      - spouse_new_middle_name: ${ spouse.new_name.middle if change_spouse_name else "" }
+      - spouse_new_last_name: ${ (spouse.new_name.last + (", " + spouse.new_name.suffix if spouse.new_name.suffix else "")) if change_spouse_name else "" }
+        
+      - minor_child1_old_first_name: ${ children[0].name.first if change_children_names and len(children) > 0 else "" }
+      - minor_child1_old_middle_name: ${ children[0].name.middle if change_children_names and len(children) > 0 else "" }
+      - minor_child1_old_last_name: ${ (children[0].name.last + (", " + children[0].name.suffix if children[0].name.suffix else "")) if change_children_names and len(children) > 0 else "" }
+      - minor_child1_new_first_name: ${ children[0].new_name.first if change_children_names and len(children) > 0 else "" }
+      - minor_child1_new_middle_name: ${ children[0].new_name.middle if change_children_names and len(children) > 0 else "" }
+      - minor_child1_new_last_name: ${ (children[0].new_name.last + (", " + children[0].new_name.suffix if children[0].new_name.suffix else "")) if change_children_names and len(children) > 0 else "" }
+        
+      - minor_child2_old_first_name: ${ children[1].name.first if change_children_names and len(children) > 1 else "" }
+      - minor_child2_old_middle_name: ${ children[1].name.middle if change_children_names and len(children) > 1 else "" }
+      - minor_child2_old_last_name: ${ (children[1].name.last + (", " + children[1].name.suffix if children[1].name.suffix else "")) if change_children_names and len(children) > 1 else "" }
+      - minor_child2_new_first_name: ${ children[1].new_name.first if change_children_names and len(children) > 1 else "" }
+      - minor_child2_new_middle_name: ${ children[1].new_name.middle if change_children_names and len(children) > 1 else "" }
+      - minor_child2_new_last_name: ${ (children[1].new_name.last + (", " + children[1].new_name.suffix if children[1].new_name.suffix else "")) if change_children_names and len(children) > 1 else "" }
+        
+      - minor_child3_old_first_name: ${ children[2].name.first if change_children_names and len(children) > 2 else "" }
+      - minor_child3_old_middle_name: ${ children[2].name.middle if change_children_names and len(children) > 2 else "" }
+      - minor_child3_old_last_name: ${ (children[2].name.last + (", " + children[2].name.suffix if children[2].name.suffix else "")) if change_children_names and len(children) > 2 else "" }
+      - minor_child3_new_first_name: ${ children[2].new_name.first if change_children_names and len(children) > 2 else "" }
+      - minor_child3_new_middle_name: ${ children[2].new_name.middle if change_children_names and len(children) > 2 else "" }
+      - minor_child3_new_last_name: ${ (children[2].new_name.last + (", " + children[2].new_name.suffix if children[2].new_name.suffix else "")) if change_children_names and len(children) > 2 else "" }
+        
+      - wants_new_birth_certifcate: ${ birth_certificate_option == "option_two" }
+      - new_birth_certificate_sealed_names: ${ comma_and_list([person.name.full(middle="full") for person in people_for_sealed_birth_certificate]) if birth_certificate_option == "option_two" else "" }
+      - signature_date: ${ format_date(signature_date, format="MM/dd/yyyy") if MLH_esign and MLH_esign_supported else "" }
+      - petitioner_signature: |
+          % if MLH_esign and MLH_esign_supported:
+          /s/ ${ users[0].name.full(middle="full") }
+          % else:
+          ${ "" }
+          % endif
+      - petitioner_signature_esign_cite: ${ MLH_esign_tag if MLH_esign and MLH_esign_supported else "" }
+      - attorney_signature: ${ "Self-represented" }
+      - case_number__2:
+      - no_publication_of_notice: ${ not publication_is_ok }
+      - publication_harms_user: ${ publication_harms_user_value }
+      - publication_harms_family_members: ${ publication_harms_family_members_value }
+      - family_members_harmed_by_publication: ${ family_members_harmed_by_publication_value }
+      - publication_has_physical_danger: ${ not publication_is_ok and why_not_publish["danger"] }
+      - publication_has_discrimination_or_retaliation: ${ not publication_is_ok and why_not_publish["discrimination"] }
+      - no_publication_basis_of_fear: ${ not publication_is_ok and (why_not_publish["danger"] or why_not_publish["discrimination"]) }
+      - no_publication_basis_of_fear_user: ${ not publication_is_ok and publication_harms_user_value }
+      - no_publication_basis_of_fear_family_members: ${ not publication_is_ok and publication_harms_family_members_value }
+      - basis_of_fear_family_members_list: ${ basis_of_fear_family_members_list_value }
+      - is_victim_of_crime: ${ not publication_is_ok and why_not_publish["danger"] and (publication_danger_reasons["stalking"] or publication_danger_reasons["violence"]) }
+      - is_affirming_gender_identity: ${ not publication_is_ok and ((why_not_publish["danger"] and publication_danger_reasons["gender_identity"]) or (why_not_publish["discrimination"] and ("gender_identity" in discrimination_reason_values))) }
+      - other_basis_of_fear: ${ not publication_is_ok and ((why_not_publish["danger"] and publication_danger_reasons["other"]) or (why_not_publish["discrimination"] and ("past_person" in discrimination_reason_values or "past_community" in discrimination_reason_values or discrimination_additional))) }
+      - no_publication_and_basis_of_fear_details: ${ no_publication_and_basis_of_fear_details_value }
+      - signature_date__1: ${ format_date(signature_date, format="MM/dd/yyyy") if MLH_esign and MLH_esign_supported else "" }
+      - petitioner_signature__1: |
+          % if MLH_esign and MLH_esign_supported:
+          /s/ ${ users[0].name.full(middle="full") }
+          % else:
+          ${ "" }
+          % endif
+      - petitioner_signature_esign_cite__1: ${ MLH_esign_tag if MLH_esign and MLH_esign_supported else "" }
+      - petitioner_printed_name: ${ users[0].name.full(middle="full") }
+      - case_number__3:
+        
+      - first_parent_or_guardian_signature_date: ${ format_date(signature_date, format="MM/dd/yyyy") if change_children_names and MLH_esign and MLH_esign_supported else "" }
+      - first_parent_or_guardian_signature: |
+          % if change_children_names and MLH_esign and MLH_esign_supported:
+          /s/ ${ users[0].name.full(middle="full") }
+          % else:
+          ${ "" }
+          % endif
+      - first_parent_signature_esign_cite: ${ MLH_esign_tag if change_children_names and MLH_esign and MLH_esign_supported else "" }
+      - first_parent_or_guardian_name: ${ users[0].name.full(middle="full") if change_children_names else (minor_first_signing_parent.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) else "") }
+      - first_parent_or_guardian_address_line_one: ${ users[0].address.line_one() if change_children_names else (minor_first_signing_parent.address.line_one() if (petitioner_is_minor and not emancipated_minor) else "") }
+      - first_parent_or_guardian_address_line_two: ${ users[0].address.line_two() if change_children_names else (minor_first_signing_parent.address.line_two() if (petitioner_is_minor and not emancipated_minor) else "") }
+      - first_parent_or_guardian_phone_number: ${ phone_number_formatted(users[0].phone_number) if change_children_names else (phone_number_formatted(minor_first_signing_parent.phone_number) if (petitioner_is_minor and not emancipated_minor) and minor_first_signing_parent.phone_number else "") }
+        
+      - second_parent_or_guardian_name: ${ children_other_parent.name.full(middle="full") if change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and children_other_parent.agrees_to_name_change else (minor_second_signing_parent.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent else "") }
+      - second_parent_or_guardian_address_line_one: |
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          ${ users[0].address.line_one() if spouse_address_same_as_user else spouse.address.line_one() }
+          % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
+          ${ other_parent.address.line_one() }
+          % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent:
+          ${ minor_second_signing_parent.address.line_one() }
+          % endif
+      - second_parent_or_guardian_address_line_two: |
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          ${ users[0].address.line_two() if spouse_address_same_as_user else spouse.address.line_two() }
+          % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
+          ${ other_parent.address.line_two() }
+          % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent:
+          ${ minor_second_signing_parent.address.line_two() }
+          % endif
+      - second_parent_or_guardian_phone_number: |
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          ${ phone_number_formatted(spouse.phone_number) }
+          % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change and other_parent.phone_number:
+          ${ phone_number_formatted(other_parent.phone_number) }
+          % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent and minor_second_signing_parent.phone_number:
+          ${ phone_number_formatted(minor_second_signing_parent.phone_number) }
+          % endif
+          
+      - consenting_spouse_name: ${ spouse.name.full(middle="full") if change_spouse_name else "" }
+      - consenting_spouse_address_line_one: ${ (users[0].address.line_one() if spouse_address_same_as_user else spouse.address.line_one()) if change_spouse_name else "" }
+      
+      - consenting_spouse_address_line_two: ${ (users[0].address.line_two() if spouse_address_same_as_user else spouse.address.line_two()) if change_spouse_name else "" }
+      - consenting_spouse_phone_number: ${ spouse.phone_numbers() if change_spouse_name else "" }
+        
+      - attorney_signature__1:
+      - attorney_name:
+      - attorney_bar_number:
+      - attorney_address_line_one:
+      - attorney_address_line_two:
+      - attorney_phone_number:
+        
+      - consenting_minor1_signature_date: ${ format_date(signature_date, format="MM/dd/yyyy") if petitioner_is_minor and not emancipated_minor and MLH_esign and MLH_esign_supported else "" }
+      - consenting_minor1_signature: ${ "/s/ " + users[0].name.full(middle="full") if petitioner_is_minor and not emancipated_minor and MLH_esign and MLH_esign_supported else "" }
+      - minor_signature_esign_cite: ${ MLH_esign_tag if petitioner_is_minor and not emancipated_minor and MLH_esign and MLH_esign_supported else "" }
+      - consenting_minor1_name: ${ users[0].name.full(middle="full") if petitioner_is_minor and not emancipated_minor else "" }
+        
+      - consenting_minor2_name:
