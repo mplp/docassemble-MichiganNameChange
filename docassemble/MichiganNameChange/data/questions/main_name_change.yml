@@ -1099,11 +1099,11 @@ subquestion: |
 
   If someone has a criminal record, select them below. Otherwise, the judge might think they are trying to hide something.
 fields:
-  - Do you have a criminal record?: petitioner_has_criminal_record
+  - ${ "Do you have a criminal record?" if change_petitioner_name else "Does " + people_changing_names[0].name.full(middle="full") + " have a criminal record?" }: single_person_has_criminal_record
     datatype: yesnoradio
     show if:
       code: |
-        change_petitioner_name and not change_spouse_name and not change_children_names
+        len(people_changing_names) == 1
   - label: |
       Does any person listed here have a criminal record? (check all that apply)
     field: people_with_criminal_records
@@ -1113,13 +1113,13 @@ fields:
     none of the above: True
     show if:
       code: |
-        not (change_petitioner_name and not change_spouse_name and not change_children_names)
+        len(people_changing_names) > 1
 continue button field: criminal_record_selection_complete
 validation code: |
-  if change_petitioner_name and not change_spouse_name and not change_children_names:
+  if len(people_changing_names) == 1:
     people_with_criminal_records = DADict(
       "people_with_criminal_records",
-      elements={"petitioner": petitioner_has_criminal_record},
+      elements={"petitioner" if change_petitioner_name else "minor_child": single_person_has_criminal_record},
       auto_gather=False
     )
 ---
