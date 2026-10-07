@@ -79,8 +79,7 @@ objects:
   - prior_family_cases: DAList.using(
       ask_number=False,
       complete_attribute="complete",
-      object_type=DAObject,
-      there_are_any=True
+      object_type=DAObject
       )
   - criminal_records: DAList.using(
       ask_number=False,
@@ -124,8 +123,7 @@ code: |
   users.gather()
   users[0].birthdate
 
-  petitioner_age
-  if petitioner_age < 14:
+  if users[0].age_in_years() < 14:
     petitioner_under_14_kickout
   elif petitioner_is_minor:
     minor_emancipation_complete
@@ -203,11 +201,7 @@ code: |
         children_legal_custody_kickout
       if not children_have_same_other_parent:
         children_different_parents_kickout
-    if petitioner_relationship_to_children == "biological":
-      if spouse_is_other_parent:
-        if not change_spouse_name:
-          spouse.name.first
-      else:
+      if not spouse_is_other_parent:
         other_parent.name.first
       children_other_parent
       children_other_parent_questions_needed
@@ -220,15 +214,16 @@ code: |
       if children_other_parent.is_alive and not children_other_parent.has_joint_legal_custody and not children_other_parent.agrees_to_name_change and not (children_other_parent.failed_contact_two_years or children_other_parent.abuse_conviction or children_other_parent.murder_conviction):
         no_parental_consent_exception_kickout
       if not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known:
-        children_other_parent.address.address
+        other_parent_address_same_as_user
+        if not other_parent_address_same_as_user:
+          children_other_parent.address.address
+        other_parent.phone_number
   if change_children_names:
     children.target_number
     children.gather()
 
   nav.set_section("signpost_case")
-  family_court_cases
-  if family_court_cases:
-    prior_family_cases.gather()
+  prior_family_cases.gather()
 
   people_changing_names
   criminal_record_subject_choices
@@ -346,11 +341,9 @@ id: fraudulent intent
 question: |
   Fraudulent Intent
 subquestion: |
-  Do you want this name change for a fraudulent reason?
-
   Examples of fraud include wanting a name change to escape criminal history or deceive creditors.
 fields:
-  - no label: fraudulent_name_change
+  - Do you want this name change for a fraudulent reason?: fraudulent_name_change
     datatype: yesnoradio
 ---
 id: fraudulent intent kickout
@@ -377,7 +370,9 @@ id: petitioner current name
 question: |
   What is your current legal name?
 subquestion: |
-  ${ collapse_template(petitioner_name_help) }
+  ${ collapse_template(minor_name_change_help_template) }
+  ${ collapse_template(children_name_change_help) }
+  ${ collapse_template(adult_name_change_help) }
 fields:
   - code: |
       users[0].name_fields(
@@ -385,15 +380,22 @@ fields:
         show_suffix=True
       )
 ---
-# feels like these should be broken up into multiple help accordions with more specific subjects?
-template: petitioner_name_help
+template: minor_name_change_help_template
 subject: |
-  Help
+  What if I am a minor changing my name?
 content: |
   For children and teens under age 18. If you are 13 or younger, you must have a parent or guardian file for you, and their information should go on this screen. If you are 14 or older, you can enter your own information here and continue.
-
+---
+template: children_name_change_help
+subject: |
+  What if I am changing my child's name?
+content: |
   If you are a parent asking to change the name of your minor child, enter **your** information here even if your name is not changing. You will enter the child's information later.
-
+---
+template: adult_name_change_help
+subject: |
+  What if I am an adult changing my name?
+content: |
   If you are an adult asking to change your own name, enter your information here. If your spouse or children are also changing their name, you will enter their information later.
 ---
 id: petitioner birthdate
@@ -405,8 +407,7 @@ fields:
 ---
 id: calculate petitioner age
 code: |
-  petitioner_age = users[0].age_in_years()
-  petitioner_is_minor = petitioner_age < 18
+  petitioner_is_minor = users[0].age_in_years() < 18
   if not petitioner_is_minor:
     emancipated_minor = False
 ---
@@ -455,15 +456,15 @@ fields:
 id: minor parent labels
 continue button field: minor_parent_labels_complete
 question: |
-  How should we refer to your parents?
-subquestion: |
-  The answer to this question only affects the language used in this tool. It will not affect your forms in any way.
+  Your parents
 fields:
-  - no label: minor_parent_terms
+  - How should we refer to your parents?: minor_parent_terms
     input type: radio
     choices:
       - Mother / Father: mother_father
       - First Parent / Second Parent: first_second
+  - note: |
+      The answer to this question only affects the language used in this tool. It will not affect your forms in any way.
 validation code: |
   if minor_parent_terms == "mother_father":
     minor_parent_one.relationship_label = "mother"
@@ -475,17 +476,17 @@ validation code: |
 id: guardian parent labels
 continue button field: guardian_parent_labels_complete
 question: |
-  First Parent Information
+  Parent Information
 fields:
   - label: |
       How should we refer to the child(ren)'s parents?
-
-      The answer to this question only affects the language used in this tool. It will not affect your forms in any way.
     field: guardian_parent_terms
     input type: radio
     choices:
       - Mother / Father: mother_father
       - First Parent / Second Parent: first_second
+  - note: |
+      The answer to this question only affects the language used in this tool. It will not affect your forms in any way.
 validation code: |
   if guardian_parent_terms == "mother_father":
     minor_parent_one.relationship_label = "mother"
@@ -568,7 +569,11 @@ sets:
 question: |
   ${ minor_parent_one.relationship_label.capitalize() } Information
 subquestion: |
+  % if petitioner_is_minor:
   Enter your ${ minor_parent_one.relationship_label }'s full legal name.
+  % else:
+  Enter the ${ minor_parent_one.relationship_label }'s full legal name.
+  % endif
 fields:
   - code: |
       minor_parent_one.name_fields(
@@ -585,7 +590,11 @@ sets:
 question: |
   ${ minor_parent_two.relationship_label.capitalize() } Information
 subquestion: |
+  % if petitioner_is_minor:
   Enter your ${ minor_parent_two.relationship_label }'s full legal name.
+  % else:
+  Enter the ${ minor_parent_two.relationship_label }'s full legal name.
+  % endif
 fields:
   - code: |
       minor_parent_two.name_fields(
@@ -608,7 +617,7 @@ undefine:
 question: |
   ${ x.name.first }'s Information
 fields:
-  - Is your ${ x.relationship_label } still alive?: x.is_alive
+  - Is ${ x.name.first } still alive?: x.is_alive
     datatype: yesnoradio
   - Do you know where ${ x.name.first } lives?: x.whereabouts_known
     datatype: yesnoradio
@@ -662,7 +671,7 @@ fields:
     js show if: |
       val("x.murder_conviction")
   - note: |
-      **If your parent agrees to the name change, you need their current address for the paperwork.**
+      **If ${ x.name.first } agrees to the name change, you need their current address for the paperwork.**
     js show if: |
       val("x.is_alive") && val("x.agrees_to_name_change") && val("x.whereabouts_known") === false
   - Street Address or P.O. Box: x.address.address
@@ -820,8 +829,6 @@ code: |
 id: minor name change setup
 code: |
   minor_reason_for_name_change
-  name_change_target_group = "adults"
-  adult_name_change = "myself"
   change_petitioner_name = True
   change_spouse_name = False
   change_children_names = False
@@ -957,50 +964,95 @@ fields:
     code: |
       name_suffix()
 ---
+generic object: DAList
+template: x.collapsed_table_template
+subject: |
+  So far, you have listed...
+content: |
+  ${ x.table.show(editable=False) }
+---
+generic object: DAList
+template: x.question_text_table_template
+content: |
+  % if x.number_gathered() > 1:
+  ${ collapse_template(x.collapsed_table_template) }
+  % endif
+---
+id: prior_family_cases.revisit
+question: |
+  Review prior family cases
+subquestion: |
+  ${ prior_family_cases.table }
+
+  ${ prior_family_cases.add_action(color="success", size="md") }
+continue button field: prior_family_cases.revisit
+---
+id: prior family cases table
+table: prior_family_cases.table
+rows: prior_family_cases
+columns:
+  - State: row_item.state
+  - Case Number: row_item.docket_number
+  - Case name: row_item.title
+  - County: row_item.county
+edit:
+  - status
+delete buttons: True
+confirm: True
+---
 id: prior family division circuit court cases
 question: |
   Prior Family Division Circuit Court Cases
 subquestion: |
-  Have any of the people whose names are changing ever been involved in a case in the family division of any circuit court in Michigan?
+  Are there any prior family division cases in Michigan?
 
   This includes divorce, custody, child support, personal protection orders, paternity, termination of parental rights, child protective proceedings, juvenile guardianships, and juvenile delinquency proceedings.
 
   This includes if someone was involved as a child in their parents’ divorce or custody case, even if it was many years ago.
 
 fields:
-  - no label: family_court_cases
+  - Have any of the people whose names are changing ever been involved in a case in the family division of any circuit court in Michigan?: prior_family_cases.there_are_any
     datatype: yesnoradio
   - note: |
       **You will enter information for any prior family division court cases on the next page.**
     show if:
-      variable: family_court_cases
+      variable: prior_family_cases.there_are_any
       is: True
+---
+id: prior family cases there is another
+question: |
+  Add another prior case?
+subquestion: |
+  So far, you have listed&colon;
+
+  ${ prior_family_cases.table }
+fields:
+  - Do you have another family division court case to include?: prior_family_cases.there_is_another
+    datatype: yesnoradio
 ---
 id: prior family case gather logic
 code: |
-  prior_family_cases[i].state
-  if prior_family_cases[i].state == "MI":
-    prior_family_cases[i].county = prior_family_cases[i].michigan_county
-  else:
-    prior_family_cases[i].county = prior_family_cases[i].other_county
+  prior_family_cases[i].status
   prior_family_cases[i].complete = True
 ---
 id: prior family case information
 question: |
-  The ${ capitalize(ordinal(i)) } Prior Case
+  Enter the ${ capitalize(ordinal(i)) } Prior Case
 subquestion: |
+  ${ prior_family_cases.question_text_table_template }
+
   *For each prior family division court case, fill out all of the the following:*
 fields:
   - State: prior_family_cases[i].state
     code: |
       states_list()
     default: MI
-  - County: prior_family_cases[i].michigan_county
+  - County: prior_family_cases[i].county
     code: |
       court_list._load_courts()["address_county"].unique()
     js show if: |
       val("prior_family_cases[i].state") == "MI"
-  - County: prior_family_cases[i].other_county
+  - County: prior_family_cases[i].county
     js show if: |
       val("prior_family_cases[i].state") !== "MI"
   - Court Name: prior_family_cases[i].court
@@ -1031,26 +1083,6 @@ fields:
   - Is there a child support order in this case that is currently in effect?: prior_family_cases[i].has_child_support_order
     datatype: yesnoradio
 ---
-id: prior family cases there is another
-question: |
-  Add another prior case?
-subquestion: |
-  So far, you have listed:
-
-  ${ prior_family_cases.table }
-fields:
-  - Do you have another family division court case to include?: prior_family_cases.there_is_another
-    datatype: yesnoradio
----
-table: prior_family_cases.table
-rows: prior_family_cases
-columns:
-  - Case name: row_item.title
-  - State: state_name(row_item.state)
-  - County: row_item.county
-  - Case number: row_item.docket_number
-edit: True
----
 id: criminal records
 question: |
   Criminal Records
@@ -1067,6 +1099,11 @@ subquestion: |
 
   If someone has a criminal record, select them below. Otherwise, the judge might think they are trying to hide something.
 fields:
+  - Do you have a criminal record?: petitioner_has_criminal_record
+    datatype: yesnoradio
+    show if:
+      code: |
+        change_petitioner_name and not change_spouse_name and not change_children_names
   - label: |
       Does any person listed here have a criminal record? (check all that apply)
     field: people_with_criminal_records
@@ -1074,7 +1111,17 @@ fields:
     code: |
       criminal_record_subject_choices
     none of the above: True
+    show if:
+      code: |
+        not (change_petitioner_name and not change_spouse_name and not change_children_names)
 continue button field: criminal_record_selection_complete
+validation code: |
+  if change_petitioner_name and not change_spouse_name and not change_children_names:
+    people_with_criminal_records = DADict(
+      "people_with_criminal_records",
+      elements={"petitioner": petitioner_has_criminal_record},
+      auto_gather=False
+    )
 ---
 code: |
   criminal_record_selected_choices = [
@@ -1097,6 +1144,8 @@ question: |
   ${ capitalize(ordinal(i)) } Criminal Record
 subquestion: |
   Enter the information about this criminal record.
+
+  ${ criminal_records.question_text_table_template }
 fields:
   - Whose criminal record is this?: criminal_records[i].person
     code: |
@@ -1109,10 +1158,29 @@ fields:
 ---
 id: criminal records there is another
 question: |
-  Is there another criminal record?
+  Add another criminal record?
 subquestion: |
   Add every criminal record for each person whose name is changing.
-yesno: criminal_records.there_is_another
+
+  So far, you have listed&colon;
+
+  ${ criminal_records.table }
+fields:
+  - Do you have another criminal record to include?: criminal_records.there_is_another
+    datatype: yesnoradio
+---
+id: criminal records table
+table: criminal_records.table
+rows: criminal_records
+columns:
+  - Person: |
+      "A minor child" if row_item.person == "minor_child" else criminal_record_subject_labels[row_item.person]
+  - Charge: row_item.charge
+  - Date: row_item.date
+edit:
+  - charge
+delete buttons: True
+confirm: True
 ---
 id: birth certificate request
 question: |
@@ -1125,26 +1193,40 @@ subquestion: |
 
   You must decide now which option you want. It will be hard to change this decision after the name change is final.
 fields:
+  - Do you want a new birth certificate with **only** ${ "your" if change_petitioner_name else "your child’s" } new name on it (Option 2)?: single_person_new_birth_certificate
+    datatype: yesnoradio
+    show if:
+      code: |
+        len(people_changing_names) == 1
   - Do you want new birth certificates with **only new names** on them for anyone (Option 2)?: birth_certificate_option
     input type: radio
     choices:
       - Yes: option_two
       - No, it’s fine to have the new names **AND** old names on all of the birth certificates.: option_one
+    show if:
+      code: |
+        len(people_changing_names) > 1
   - label: |
-      I want a new birth certificate with **only the new name (Option 2)** for the following people: (check all that apply)
+      I want a new birth certificate with **only** the new name **(Option 2)** for the following people: (check all that apply)
     field: people_for_sealed_birth_certificate
     datatype: object_checkboxes
     choices: people_changing_names
     object labeler: |
       lambda person: person.name.full(middle="full")
     none of the above: False
-    show if:
-      variable: birth_certificate_option
-      is: option_two
+    js show if: |
+      ${ "true" if len(people_changing_names) > 1 else "false" } && val("birth_certificate_option") == "option_two"
+    note: |
+      If you **don’t** select someone, they will get **Option 1**, and both their old and new name will be on the updated birth certificate.
   - note: |
       **NOTE:** For either option, getting a final name change order does **not** automatically update the birth certificate.
 
       If you want to update a birth certificate and get a copy, you will need to record the name change with the Michigan Vital Records Changes department. You have to wait until the name change is final to update a birth certificate. If you want to learn more now, visit the state website [Correct A Birth Record](https://www.michigan.gov/mdhhs/doing-business/vitalrecords/additonal-information/correct-a-birth-record).
+---
+if: len(people_changing_names) == 1
+code: |
+  birth_certificate_option = "option_two" if single_person_new_birth_certificate else "option_one"
+  people_for_sealed_birth_certificate = [people_changing_names[0]] if single_person_new_birth_certificate else []
 ---
 id: publication notice
 question: |
@@ -1641,7 +1723,7 @@ fields:
   - Is ${ spouse.name.first if change_spouse_name else "your spouse" } the children's other parent?: spouse_is_other_parent
     datatype: yesnoradio
     js show if: |
-      val("petitioner_has_legal_custody_of_all_children") && val("children_have_same_other_parent")
+      ${ "true" if change_spouse_name else "false" } && val("petitioner_has_legal_custody_of_all_children") && val("children_have_same_other_parent")
   - label: |
       How many minor children's names should be included in this petition?
 
@@ -1702,6 +1784,10 @@ fields:
         show_suffix=True
       )
 ---
+if: not change_spouse_name
+code: |
+  spouse_is_other_parent = False
+---
 code: |
   children_other_parent = spouse if spouse_is_other_parent else other_parent
 ---
@@ -1748,62 +1834,62 @@ fields:
   - Do you know where ${ children_other_parent.name.first } lives?: children_other_parent.whereabouts_known
     datatype: yesnoradio
     js show if: |
-      val("children_other_parent.is_alive")
+      val("children_other_parent.is_alive") === true
 
   - Does ${ children_other_parent.name.first } have joint legal custody of the ${ "child" if children.target_number == 1 else "children" }?: children_other_parent.has_joint_legal_custody
     datatype: yesnoradio
     js show if: |
-      val("children_other_parent.is_alive")
+      val("children_other_parent.is_alive") === true
 
   - Is ${ children_other_parent.name.first } also asking the judge to change your ${ "child's name" if children.target_number == 1 else "children's names" }?: children_other_parent.joins_child_name_change_request
     datatype: yesnoradio
     js show if: |
-      val("children_other_parent.is_alive") && val("children_other_parent.whereabouts_known") && val("children_other_parent.has_joint_legal_custody")
+      val("children_other_parent.is_alive") === true && val("children_other_parent.whereabouts_known") === true && val("children_other_parent.has_joint_legal_custody") === true
 
   - Does ${ children_other_parent.name.first } agree with the name change?: children_other_parent.agrees_to_name_change
     datatype: yesnoradio
     js show if: |
-      val("children_other_parent.is_alive") && (!val("children_other_parent.has_joint_legal_custody") || (val("children_other_parent.whereabouts_known") && !val("children_other_parent.joins_child_name_change_request")))
+      val("children_other_parent.is_alive") === true && (val("children_other_parent.has_joint_legal_custody") === false || (val("children_other_parent.whereabouts_known") === true && val("children_other_parent.has_joint_legal_custody") === true && val("children_other_parent.joins_child_name_change_request") === false))
 
   - note: |
       **We're sorry, this tool is not right for you. You cannot ask a judge to change the name of your child if your child's other parent has custody, but his or her whereabouts are unknown. You may want to contact a lawyer to help you with this matter. You can use the [Guide to Legal Help](https://michiganlegalhelp.org/guide-to-legal-help) on Michigan Legal Help to find a lawyer or a legal services office near you.**
     js show if: |
-      val("children_other_parent.is_alive") && !val("children_other_parent.whereabouts_known") && val("children_other_parent.has_joint_legal_custody")
+      val("children_other_parent.is_alive") === true && val("children_other_parent.whereabouts_known") === false && val("children_other_parent.has_joint_legal_custody") === true
 
   - Has ${ children_other_parent.name.first } failed to visit, contact, or communicate with the ${ "child" if children.target_number == 1 else "children" } for the last two years?: children_other_parent.failed_contact_two_years
     datatype: yesnoradio
     js show if: |
-      val("children_other_parent.is_alive") && !val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.agrees_to_name_change")
+      val("children_other_parent.is_alive") === true && val("children_other_parent.has_joint_legal_custody") === false && val("children_other_parent.agrees_to_name_change") === false
 
   - Has ${ children_other_parent.name.first } been convicted of child abuse, criminal sexual conduct, or assault with intent to commit criminal sexual conduct with the ${ "child" if children.target_number == 1 else "children" } or a sibling of the ${ "child" if children.target_number == 1 else "children" } as the victim?: children_other_parent.abuse_conviction
     datatype: yesnoradio
     js show if: |
-      val("children_other_parent.is_alive") && !val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.agrees_to_name_change")
+      val("children_other_parent.is_alive") === true && val("children_other_parent.has_joint_legal_custody") === false && val("children_other_parent.agrees_to_name_change") === false
 
   - note: |
       **Attach a copy of the judgment of sentence.**
     js show if: |
-      val("children_other_parent.abuse_conviction")
+      val("children_other_parent.is_alive") === true && val("children_other_parent.has_joint_legal_custody") === false && val("children_other_parent.agrees_to_name_change") === false && val("children_other_parent.abuse_conviction") === true
 
   - Has ${ children_other_parent.name.first } been convicted of first degree murder or second degree murder?: children_other_parent.murder_conviction
     datatype: yesnoradio
     js show if: |
-      val("children_other_parent.is_alive") && !val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.agrees_to_name_change")
+      val("children_other_parent.is_alive") === true && val("children_other_parent.has_joint_legal_custody") === false && val("children_other_parent.agrees_to_name_change") === false
 
   - note: |
       **Attach a copy of the judgment of murder sentence.**
     js show if: |
-      val("children_other_parent.murder_conviction")
+      val("children_other_parent.is_alive") === true && val("children_other_parent.has_joint_legal_custody") === false && val("children_other_parent.agrees_to_name_change") === false && val("children_other_parent.murder_conviction") === true
 
   - note: |
       **Sorry, Michigan law requires the agreement of both parents to change a minor's name except under limited circumstances. Based on your answers, none of these circumstances are present in your case.**
     js show if: |
-      val("children_other_parent.is_alive") && !val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.agrees_to_name_change") && !val("children_other_parent.failed_contact_two_years") && !val("children_other_parent.abuse_conviction") && !val("children_other_parent.murder_conviction")
+      val("children_other_parent.is_alive") === true && val("children_other_parent.has_joint_legal_custody") === false && val("children_other_parent.agrees_to_name_change") === false && val("children_other_parent.failed_contact_two_years") === false && val("children_other_parent.abuse_conviction") === false && val("children_other_parent.murder_conviction") === false
 
   - note: |
       **Sorry, this tool is not right for you. Both parents with joint legal custody must agree to the child's name change.**
     js show if: |
-      val("children_other_parent.is_alive") && val("children_other_parent.whereabouts_known") && val("children_other_parent.has_joint_legal_custody") && !val("children_other_parent.joins_child_name_change_request") && !val("children_other_parent.agrees_to_name_change")
+      val("children_other_parent.is_alive") === true && val("children_other_parent.whereabouts_known") === true && val("children_other_parent.has_joint_legal_custody") === true && val("children_other_parent.joins_child_name_change_request") === false && val("children_other_parent.agrees_to_name_change") === false
 
 continue button field: children_part_two
 validation code: |
@@ -1824,24 +1910,38 @@ validation code: |
     children_other_parent.abuse_conviction = False
     children_other_parent.murder_conviction = False
 ---
+id: children other parent same address
+question: |
+  ${ other_parent.name.first }'s address
+fields:
+  - Is ${ other_parent.name.first }'s address the same as yours?: other_parent_address_same_as_user
+    datatype: yesnoradio
+---
 id: children other parent contact information
 sets:
-  - children_other_parent.address.address
-  - children_other_parent.address.unit
-  - children_other_parent.address.city
-  - children_other_parent.address.state
-  - children_other_parent.address.zip
-  - children_other_parent.phone_number
+  - other_parent.address.address
+  - other_parent.address.unit
+  - other_parent.address.city
+  - other_parent.address.state
+  - other_parent.address.zip
 question: |
-  More Information About ${ children_other_parent.name.first }
+  ${ other_parent.name.first }'s address
 subquestion: |
-  Enter ${ children_other_parent.name.first }'s address and phone number.
+  Enter ${ other_parent.name.first }'s address.
 fields:
   - code: |
-      children_other_parent.address_fields(default_state="MI")
-  - Phone number: children_other_parent.phone_number
+      other_parent.address_fields(default_state="MI")
+---
+id: children other parent phone number
+sets:
+  - other_parent.phone_number
+question: |
+  ${ other_parent.name.first }'s phone number
+subquestion: |
+  Enter ${ other_parent.name.first }'s phone number.
+fields:
+  - Phone number: other_parent.phone_number
     datatype: al_international_phone
-    required: False
 ---
 id: custodial parent whereabouts unknown kickout
 event: custodial_parent_whereabouts_unknown_kickout
@@ -2147,7 +2247,7 @@ attachment:
     pdf template file: petition_for_name_change_pc51.pdf
     #pdftk: True
     editable: False
-    skip undefined: True
+    skip undefined: False
     fields:
       - trial_court: ${ the_court.number }
       - case_number: ${ "" }
@@ -2163,17 +2263,17 @@ attachment:
           
       - petitioners_attorney_block:
         
-      - has_previous_case: ${ family_court_cases }
-      - previous_case_court: ${ 'See "Confidential Case Inventory"' if family_court_cases else "" }
+      - has_previous_case: ${ prior_family_cases.there_are_any }
+      - previous_case_court: ${ 'See "Confidential Case Inventory"' if prior_family_cases.there_are_any else "" }
       - previous_case_number:
       - judge:
       - previously_filed_case_remains_pending:
       - previously_filed_case_no_longer_pending:
         
       - name_change_for: ${ True }
-      - name_change_for_married_user: ${ name_change_target_group == "both" or change_spouse_name }
+      - name_change_for_married_user: ${ (change_petitioner_name and change_children_names) or change_spouse_name }
       - name_change_for_spouse: ${ change_spouse_name }
-      - name_change_for_minor_children: ${ change_children_names }
+      - name_change_for_minor_children: ${ change_petitioner_name and change_children_names }
       - name_change_for_adult_only: ${ change_petitioner_name and not change_spouse_name and not change_children_names and (not petitioner_is_minor or emancipated_minor) }
       - emancipated_minor_note: ${ "(Emancipated minor)" if petitioner_is_minor and emancipated_minor else "" }
       - name_change_for_minor_only: ${ (petitioner_is_minor and not emancipated_minor) or (change_children_names and not change_petitioner_name) }
@@ -2187,7 +2287,7 @@ attachment:
       - minor_guardian_name: ${ minor_guardian.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) and minor_first_signing_parent is minor_guardian else "" }
       - mentally_incompetent_parent_guardian:
         
-      - minor_consent: ${ (petitioner_is_minor and not emancipated_minor) }
+      - minor_consent: ${ (petitioner_is_minor and not emancipated_minor) or change_children_names }
         
       - consent_parents_jointly: ${ ((petitioner_is_minor and not emancipated_minor) and minor_parent_one.is_alive and minor_parent_two.is_alive and minor_parent_one.agrees_to_name_change and minor_parent_two.agrees_to_name_change) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and children_other_parent.agrees_to_name_change) }
       - consent_sole_surviving_parent: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and minor_parent_one.agrees_to_name_change and not minor_parent_two.is_alive) or (minor_parent_two.is_alive and minor_parent_two.agrees_to_name_change and not minor_parent_one.is_alive))) or (change_children_names and petitioner_relationship_to_children == "biological" and not children_other_parent.is_alive) }
@@ -2278,23 +2378,23 @@ attachment:
 
       - second_parent_or_guardian_name: ${ children_other_parent.name.full(middle="full") if change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and children_other_parent.agrees_to_name_change else (minor_second_signing_parent.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent else "") }
       - second_parent_or_guardian_address_line_one: |
-          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
           ${ users[0].address.line_one() if spouse_address_same_as_user else spouse.address.line_one() }
           % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
-          ${ other_parent.address.line_one() }
+          ${ users[0].address.line_one() if other_parent_address_same_as_user else other_parent.address.line_one() }
           % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent:
           ${ minor_second_signing_parent.address.line_one() }
           % endif
       - second_parent_or_guardian_address_line_two: |
-          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
           ${ users[0].address.line_two() if spouse_address_same_as_user else spouse.address.line_two() }
           % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
-          ${ other_parent.address.line_two() }
+          ${ users[0].address.line_two() if other_parent_address_same_as_user else other_parent.address.line_two() }
           % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent:
           ${ minor_second_signing_parent.address.line_two() }
           % endif
       - second_parent_or_guardian_phone_number: |
-          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change and spouse.phone_number:
           ${ phone_number_formatted(spouse.phone_number) }
           % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change and other_parent.phone_number:
           ${ phone_number_formatted(other_parent.phone_number) }
@@ -2328,7 +2428,7 @@ attachment:
     pdf template file: petition_for_name_change_pc51c.pdf
     #pdftk: True
     editable: False
-    skip undefined: True
+    skip undefined: False
     fields:
       - trial_court: ${ the_court.number }
       - case_number:
@@ -2344,8 +2444,8 @@ attachment:
           ${ phone_number_formatted(users[0].phone_number) }
       - petitioners_attorney_block:
         
-      - has_previous_case: ${ family_court_cases }
-      - previous_case_court: ${ 'See "Confidential Case Inventory"' if family_court_cases else "" }
+      - has_previous_case: ${ prior_family_cases.there_are_any }
+      - previous_case_court: ${ 'See "Confidential Case Inventory"' if prior_family_cases.there_are_any else "" }
         
       - previous_case_number:
       - judge:
@@ -2353,9 +2453,9 @@ attachment:
       - previously_filed_case_no_longer_pending:
         
       - name_change_for: ${ True }
-      - name_change_for_married_user: ${ name_change_target_group == "both" or change_spouse_name }
+      - name_change_for_married_user: ${ (change_petitioner_name and change_children_names) or change_spouse_name }
       - name_change_for_spouse: ${ change_spouse_name }
-      - name_change_for_minor_children: ${ change_children_names }
+      - name_change_for_minor_children: ${ change_petitioner_name and change_children_names }
       - name_change_for_adult_only: ${ change_petitioner_name and not change_spouse_name and not change_children_names and (not petitioner_is_minor or emancipated_minor) }
       - emancipated_minor_note: ${ "(Emancipated minor)" if petitioner_is_minor and emancipated_minor else "" }
       - name_change_for_minor_only: ${ (petitioner_is_minor and not emancipated_minor) or (change_children_names and not change_petitioner_name) }
@@ -2369,7 +2469,7 @@ attachment:
         
       - minor_guardian_name: ${ minor_guardian.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) and minor_first_signing_parent is minor_guardian else "" }
       - mentally_incompetent_parent_guardian:
-      - minor_consent: ${ (petitioner_is_minor and not emancipated_minor) }
+      - minor_consent: ${ (petitioner_is_minor and not emancipated_minor) or change_children_names }
         
       - consent_parents_jointly: ${ ((petitioner_is_minor and not emancipated_minor) and minor_parent_one.is_alive and minor_parent_two.is_alive and minor_parent_one.agrees_to_name_change and minor_parent_two.agrees_to_name_change) or (change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and children_other_parent.agrees_to_name_change) }
       - consent_sole_surviving_parent: ${ ((petitioner_is_minor and not emancipated_minor) and ((minor_parent_one.is_alive and minor_parent_one.agrees_to_name_change and not minor_parent_two.is_alive) or (minor_parent_two.is_alive and minor_parent_two.agrees_to_name_change and not minor_parent_one.is_alive))) or (change_children_names and petitioner_relationship_to_children == "biological" and not children_other_parent.is_alive) }
@@ -2489,23 +2589,23 @@ attachment:
         
       - second_parent_or_guardian_name: ${ children_other_parent.name.full(middle="full") if change_children_names and petitioner_relationship_to_children == "biological" and children_other_parent.is_alive and children_other_parent.agrees_to_name_change else (minor_second_signing_parent.name.full(middle="full") if (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent else "") }
       - second_parent_or_guardian_address_line_one: |
-          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
           ${ users[0].address.line_one() if spouse_address_same_as_user else spouse.address.line_one() }
           % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
-          ${ other_parent.address.line_one() }
+          ${ users[0].address.line_one() if other_parent_address_same_as_user else other_parent.address.line_one() }
           % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent:
           ${ minor_second_signing_parent.address.line_one() }
           % endif
       - second_parent_or_guardian_address_line_two: |
-          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
           ${ users[0].address.line_two() if spouse_address_same_as_user else spouse.address.line_two() }
           % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change:
-          ${ other_parent.address.line_two() }
+          ${ users[0].address.line_two() if other_parent_address_same_as_user else other_parent.address.line_two() }
           % elif (petitioner_is_minor and not emancipated_minor) and minor_second_signing_parent:
           ${ minor_second_signing_parent.address.line_two() }
           % endif
       - second_parent_or_guardian_phone_number: |
-          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and change_spouse_name:
+          % if change_children_names and petitioner_relationship_to_children == "biological" and spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change and spouse.phone_number:
           ${ phone_number_formatted(spouse.phone_number) }
           % elif change_children_names and petitioner_relationship_to_children == "biological" and not spouse_is_other_parent and children_other_parent.is_alive and children_other_parent.whereabouts_known and children_other_parent.agrees_to_name_change and other_parent.phone_number:
           ${ phone_number_formatted(other_parent.phone_number) }
