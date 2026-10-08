@@ -2119,6 +2119,10 @@ objects:
       title="Request for Hearing or Dismissal Regarding Name Change Proceeding - PC 162",
       filename="request_hearing_dismissal_pc162"
       )
+  - order_denial_request_nonpublication_pc163: ALDocument.using(
+      title="Order After Hearing Regarding Denial of Ex Parte Request for Nonpublication and Confidential Record - PC 163",
+      filename="order_denial_request_nonpublication_pc163"
+      )
 ---
 code: |
   petition_for_name_change_pc51.enabled = publication_is_ok
@@ -2555,4 +2559,18 @@ attachment:
           ${ users[0].address.line_one() }
           ${ users[0].address.line_two() }
           ${ phone_number_formatted(users[0].phone_number) }
+---
+attachment:
+  - name: Order After Hearing Regarding Denial of Ex Parte Request for Nonpublication and Confidential Record - PC 163
+    filename: order_denial_request_nonpublication_pc163
+    variable name: order_denial_request_nonpublication_pc163[i]
+    pdf template file: order_denial_request_nonpublication_pc163.pdf
+    editable: False
+    skip undefined: True
+    fields:
+      - trial_court: ${ the_court.number }
+      - trial_court_county: ${ the_court.address.county.upper() }
+      - trial_court_address_on_one_line: ${ the_court.address.on_one_line() }
+      - trial_court_phone_number: ${ the_court.phone }
+      - list_of_users_current_names: ${ comma_and_list([person.name.full(middle="full") for person in people_changing_names]) }
 ---
