@@ -2115,6 +2115,10 @@ objects:
       title="Petition for Name Change and Ex Parte Request for Nonpublication and Confidential Record - PC 51c",
       filename="petition_for_name_change_and_ex_parte_request_for_nonpublication_and_confidential_record_-_pc_51c"
       )
+  - request_hearing_dismissal_pc162: ALDocument.using(
+      title="Request for Hearing or Dismissal Regarding Name Change Proceeding - PC 162",
+      filename="request_hearing_dismissal_pc162"
+      )
 ---
 code: |
   petition_for_name_change_pc51.enabled = publication_is_ok
@@ -2532,3 +2536,23 @@ attachment:
       - consenting_minor1_name: ${ users[0].name.full(middle="full") if petitioner_is_minor and not emancipated_minor else "" }
         
       - consenting_minor2_name:
+---
+attachment:
+  - name: Request for Hearing or Dismissal Regarding Name Change Proceeding - PC 162
+    filename: request_hearing_dismissal_pc162
+    variable name: request_hearing_dismissal_pc162[i]
+    pdf template file: request_hearing_dismissal_pc162.pdf
+    editable: False
+    skip undefined: True
+    fields:
+      - trial_court: ${ the_court.number }
+      - trial_court_county: ${ the_court.address.county.upper() }
+      - trial_court_address_on_one_line: ${ the_court.address.on_one_line() }
+      - trial_court_phone_number: ${ the_court.phone }
+      - list_of_users_current_names: ${ comma_and_list([person.name.full(middle="full") for person in people_changing_names]) }
+      - petitioner_block: |
+          ${ users[0].name.full(middle="full") }
+          ${ users[0].address.line_one() }
+          ${ users[0].address.line_two() }
+          ${ phone_number_formatted(users[0].phone_number) }
+---
