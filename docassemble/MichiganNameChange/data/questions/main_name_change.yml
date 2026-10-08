@@ -2123,6 +2123,10 @@ objects:
       title="Order After Hearing Regarding Denial of Ex Parte Request for Nonpublication and Confidential Record - PC 163",
       filename="order_denial_request_nonpublication_pc163"
       )
+  - minors_consent_to_name_change_pc51b: ALDocument.using(
+      title="Minor's Consent to Name Change - PC 51b",
+      filename="minors_consent_to_name_change_pc51b"
+      )
 ---
 code: |
   petition_for_name_change_pc51.enabled = publication_is_ok
@@ -2573,4 +2577,19 @@ attachment:
       - trial_court_address_on_one_line: ${ the_court.address.on_one_line() }
       - trial_court_phone_number: ${ the_court.phone }
       - list_of_users_current_names: ${ comma_and_list([person.name.full(middle="full") for person in people_changing_names]) }
+---
+attachment:
+  - name: Minor's Consent to Name Change - PC 51b
+    filename: minors_consent_to_name_change_pc51b
+    variable name: minors_consent_to_name_change_pc51b[i]
+    pdf template file: minors_consent_to_name_change_pc51b.pdf
+    editable: False
+    skip undefined: True
+    fields:
+      - trial_court: ${ the_court.number }
+      - trial_court_county: ${ the_court.address.county.upper() }
+      - trial_court_address_on_one_line: ${ the_court.address.on_one_line() }
+      - trial_court_phone_number: ${ the_court.phone }
+      - list_of_users_current_names: ${ comma_and_list([person.name.full(middle="full") for person in people_changing_names]) }
+      - consenting_minor_name: ${ users[0].name.full(middle="full") if petitioner_is_minor and not emancipated_minor else "" }
 ---
