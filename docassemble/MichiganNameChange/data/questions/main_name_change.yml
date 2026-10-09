@@ -2127,6 +2127,10 @@ objects:
       title="Minor's Consent to Name Change - PC 51b",
       filename="minors_consent_to_name_change_pc51b"
       )
+  - notice_of_hearing_pc562: ALDocument.using(
+      title="Notice of Hearing - PC 562",
+      filename="notice_of_hearing_pc562"
+      )
 ---
 code: |
   petition_for_name_change_pc51.enabled = publication_is_ok
@@ -2592,4 +2596,20 @@ attachment:
       - trial_court_phone_number: ${ the_court.phone }
       - list_of_users_current_names: ${ comma_and_list([person.name.full(middle="full") for person in people_changing_names]) }
       - consenting_minor_name: ${ users[0].name.full(middle="full") if petitioner_is_minor and not emancipated_minor else "" }
+---
+attachment:
+  - name: Notice of Hearing - PC 562
+    filename: notice_of_hearing_pc562
+    variable name: notice_of_hearing_pc562[i]
+    pdf template file: notice_of_hearing_pc562.pdf
+    editable: False
+    skip undefined: True
+    fields:
+      - trial_court_county: ${ the_court.address.county.upper() }
+      - list_of_users_current_names: ${ comma_and_list([person.name.full(middle="full") for person in people_changing_names]) }
+      - purpose_of_hearing: ${ "" }
+      - petitioner_printed_name: ${ users[0].name.full(middle="full") }
+      - petitioner_address_line1: ${ users[0].address.line_one() }
+      - petitioner_address_line2: ${ users[0].address.line_two() }
+      - petitioner_phone: ${ phone_number_formatted(users[0].phone_number) }
 ---
