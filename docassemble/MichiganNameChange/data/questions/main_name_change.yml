@@ -443,8 +443,7 @@ question: |
   What is your current legal name?
 subquestion: |
   ${ collapse_template(minor_name_change_help_template) }
-  ${ collapse_template(children_name_change_help) }
-  ${ collapse_template(adults_changing_name_help) }
+  ${ collapse_template(adult_petitioner_name_help) }
 fields:
   - code: |
       users[0].name_fields(
@@ -454,21 +453,18 @@ fields:
 ---
 template: minor_name_change_help_template
 subject: |
-  What if I am a minor changing my name?
+  What if I am under age 18?
 content: |
-  For children and teens under age 18. If you are 13 or younger, you must have a parent or guardian file for you, and their information should go on this screen. If you are 14 or older, you can enter your own information here and continue.
+  * If you are 13 or younger, you must have a parent or guardian file for you, and their information should go on this screen. 
+  * If you are 14 or older, you can enter your own information here.
 ---
-template: children_name_change_help
+template: adult_petitioner_name_help
 subject: |
-  What if I am changing my child's name?
+  What if the name change is for my minor child or for multiple family members?
 content: |
-  If you are a parent asking to change the name of your minor child, enter **your** information here even if your name is not changing. You will enter the child's information later.
----
-template: adults_changing_name_help
-subject: |
-  What if I am an adult changing my name?
-content: |
-  If you are an adult asking to change your own name, enter your information here. If your spouse or children are also changing their name, you will enter their information later.
+  If you are an adult changing your name, **enter your information** here. If your spouse or children are also changing their name, you will enter their information later.
+
+  If you are a parent asking to change the name of your minor child, **enter your information** here even if your name is not changing. You will enter the child’s information later.
 ---
 id: petitioner birthdate
 question: |
@@ -1004,7 +1000,7 @@ fields:
     js show if: |
       val("name_change_target_group") == "adults" || val("name_change_target_group") == "both"
   - note: |
-      You cannot apply to change **only** your spouse's name. If only your spouse is changing his or her name, your spouse should apply.
+      You cannot apply to change **only** your spouse's name. If only your spouse is changing their name, your spouse should apply.
     js show if: |
       val("name_change_target_group") == "adults" || val("name_change_target_group") == "both"
   - Do you have a divorce case currently pending?: pending_divorce_case
@@ -1152,7 +1148,7 @@ id: spouse current name
 question: |
   Your spouse's current legal name
 subquestion: |
-  Enter your spouse's current full legal name.
+  Enter your spouse's **current** full legal name.
 fields:
   - code: |
       spouse.name_fields(
@@ -1408,7 +1404,7 @@ id: child current legal name
 question: |
   What is your ${ ordinal(i) } child's current legal name?
 subquestion: |
-  Enter the current full legal name of the ${ ordinal(i) } child whose name is being changed.
+  Enter the **current** full legal name of the ${ ordinal(i) } child whose name is being changed.
 fields:
   - code: |
       children[i].name_fields(
@@ -1556,10 +1552,8 @@ content: |
 # Removed mentions of Michigan
 id: prior family division circuit court cases
 question: |
-  Prior Family Division Circuit Court Cases
+  Any prior family division cases?
 subquestion: |
-  Are there any prior family division cases?
-
   This includes divorce, custody, child support, personal protection orders, paternity, termination of parental rights, child protective proceedings, juvenile guardianships, and juvenile delinquency proceedings.
 
   This includes if someone was involved as a child in their parents’ divorce or custody case, even if it was many years ago.
@@ -1583,7 +1577,6 @@ question: |
 subquestion: |
   ${ prior_family_cases.question_text_table_template }
 
-  *For each prior family division court case, fill out all of the the following:*
 fields:
   - State: prior_family_cases[i].state
     code: |
@@ -1784,7 +1777,7 @@ subquestion: |
   Does any person applying for a name change have a criminal record?
   % endif
 
-  Having a criminal record doesn’t mean your request for name change will be automatically denied. However, the judge may decide to schedule a hearing to decide if you are asking to change your name for a fraudulent reason, such as wanting to escape your criminal history.
+  Having a criminal record doesn't mean your request for name change will be automatically denied. However, the judge may decide to schedule a hearing to decide if you are asking to change your name for a fraudulent reason, such as wanting to escape your criminal history.
 
   You must report any criminal records, including:
 
@@ -1792,7 +1785,7 @@ subquestion: |
   * cases from out of state
   * very old records, including juvenile records
 
-  If someone has a criminal record, select them below. Otherwise, the judge might think they are trying to hide something.
+  It's important to say if there are any criminal records. Otherwise, the judge might think you are trying to hide something.
 fields:
   - ${ "Do you have a criminal record?" if change_petitioner_name else "Does " + people_changing_names[0].name.full(middle="full") + " have a criminal record?" }: single_person_has_criminal_record
     datatype: yesnoradio
@@ -1863,9 +1856,8 @@ fields:
       criminal_record_selected_choices
   - Charge: criminal_records[i].charge
     datatype: text
-  - Date of the charge: criminal_records[i].date
+  - Date (exact date or month/year): criminal_records[i].date
     datatype: text
-    hint: Exact date or month/year
 ---
 id: criminal records there is another
 question: |
@@ -2052,22 +2044,6 @@ fields:
 
   - note: |
       ${ collapse_template(stalking_help) }
-
-  - note: |
-      **On the next page, you will enter information about past incidents of stalking or physical violence.**
-    js show if: |
-      val("publication_danger_reasons['stalking']") &&
-      val("publication_danger_reasons['violence']")
-
-  - note: |
-      **On the next page, you will enter information about past incidents of stalking.**
-    js show if: |
-      val("publication_danger_reasons['stalking']") && !val("publication_danger_reasons['violence']")
-
-  - note: |
-      **On the next page, you will enter information about past incidents of physical violence.**
-    js show if: |
-      val("publication_danger_reasons['violence']") && !val("publication_danger_reasons['stalking']")
 
   - 'For “Another reason,” finish this sentence: “There is a risk of danger if information about this name change is published because…”': publication_danger_other_reason
     input type: area
