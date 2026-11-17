@@ -458,11 +458,6 @@ content: |
   * If you are 13 or younger, you must have a parent or guardian file for you, and their information should go on this screen. 
   * If you are 14 or older, you can enter your own information here.
 ---
-template: children_name_change_help
-subject: |
-  What if I am changing my child's name?
-content: |
----
 template: adult_petitioner_name_help
 subject: |
   What if the name change is for my minor child or for multiple family members?
